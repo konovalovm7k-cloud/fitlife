@@ -22,11 +22,17 @@ jobs:
       - name: Check Flutter
         run: flutter --version
 
+      - name: Generate Android project
+        run: flutter create --platforms=android --project-name fitlife .
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Analyze Dart code
         run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
