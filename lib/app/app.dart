@@ -111,6 +111,7 @@ class _FitLifeShellState extends State<FitLifeShell> {
     if (food == null || !mounted) return;
     final c = TextEditingController(text: '100');
     final grams = await showDialog<double>(context: context, builder: (context) => AlertDialog(title: Text(food.name), content: TextField(controller: c, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Граммы')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')), FilledButton(onPressed: () => Navigator.pop(context, double.tryParse(c.text.replaceAll(',', '.'))), child: const Text('Добавить'))]));
+    c.dispose();
     if (grams == null || grams <= 0 || !mounted) return;
     setState(() => meals.add(FoodEntry.fromFood(food, grams)));
   }
@@ -125,6 +126,7 @@ class _FitLifeShellState extends State<FitLifeShell> {
   Future<void> _addWeight() async {
     final c = TextEditingController(text: weight.toStringAsFixed(1));
     final value = await showDialog<double>(context: context, builder: (context) => AlertDialog(title: const Text('Вес'), content: TextField(controller: c, keyboardType: const TextInputType.numberWithOptions(decimal: true)), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')), FilledButton(onPressed: () => Navigator.pop(context, double.tryParse(c.text.replaceAll(',', '.'))), child: const Text('Сохранить'))]));
+    c.dispose();
     if (value == null || value <= 0 || !mounted) return;
     final now = DateTime.now();
     setState(() { weight = value; weights.add(WeightEntry(value, '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}')); });
@@ -133,7 +135,7 @@ class _FitLifeShellState extends State<FitLifeShell> {
   Widget _statistics() => ListView(padding: const EdgeInsets.all(16), children: [
         Text('Статистика', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
         _card(Text('Снижение: ${(startWeight - weight).toStringAsFixed(1)} кг\nДо цели: ${(weight - goalWeight).clamp(0.0, 999.0).toStringAsFixed(1)} кг\nДневная цель: ${goals.calories} ккал')),
-      ];
+      ]);
 
   Widget _profile() => ListView(padding: const EdgeInsets.all(16), children: [
         Text('Профиль', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
@@ -141,8 +143,12 @@ class _FitLifeShellState extends State<FitLifeShell> {
       ]);
 
   Future<void> _editProfile() async {
-    final ageC = TextEditingController(text: '$age'), heightC = TextEditingController(text: '$height'), weightC = TextEditingController(text: weight.toStringAsFixed(1)), goalC = TextEditingController(text: goalWeight.toStringAsFixed(1));
+    final ageC = TextEditingController(text: '$age');
+    final heightC = TextEditingController(text: '$height');
+    final weightC = TextEditingController(text: weight.toStringAsFixed(1));
+    final goalC = TextEditingController(text: goalWeight.toStringAsFixed(1));
     final result = await showDialog<List<double>>(context: context, builder: (context) => AlertDialog(title: const Text('Профиль'), content: SingleChildScrollView(child: Column(children: [TextField(controller: ageC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Возраст')), TextField(controller: heightC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Рост, см')), TextField(controller: weightC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Вес, кг')), TextField(controller: goalC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Цель, кг'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')), FilledButton(onPressed: () => Navigator.pop(context, [double.tryParse(ageC.text) ?? age.toDouble(), double.tryParse(heightC.text) ?? height.toDouble(), double.tryParse(weightC.text.replaceAll(',', '.')) ?? weight, double.tryParse(goalC.text.replaceAll(',', '.')) ?? goalWeight]), child: const Text('Сохранить'))]));
+    ageC.dispose(); heightC.dispose(); weightC.dispose(); goalC.dispose();
     if (result == null || !mounted) return;
     setState(() { age = result[0].round(); height = result[1].round(); weight = result[2]; goalWeight = result[3]; });
   }
