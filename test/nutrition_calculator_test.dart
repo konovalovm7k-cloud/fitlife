@@ -16,7 +16,7 @@ void main() {
     expect(goals.calories, 2256);
     expect(goals.protein, 148);
     expect(goals.fat, 75);
-    expect(goals.carbs, 279);
+    expect(goals.carbs, 247);
   });
 
   test('uses female BMR formula', () {
@@ -28,7 +28,7 @@ void main() {
       activity: 1.2,
     );
 
-    expect(goals.calories, 1200);
+    expect(goals.calories, 1254);
     expect(goals.protein, 112);
   });
 
