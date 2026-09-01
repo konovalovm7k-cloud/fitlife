@@ -22,9 +22,6 @@ jobs:
       - name: Check Flutter
         run: flutter --version
 
-      - name: Generate Android project
-        run: flutter create --platforms=android --project-name fitlife .
-
       - name: Install dependencies
         run: flutter pub get
 
