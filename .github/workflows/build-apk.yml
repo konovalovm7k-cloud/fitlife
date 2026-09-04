@@ -25,6 +25,9 @@ jobs:
       - name: Remove generated template tests
         run: rm -f test/widget_test.dart
 
+      - name: Apply FitLife Modern Green design
+        run: python3 tool/apply_design.py
+
       - name: Install dependencies
         run: flutter pub get
 
