@@ -1,4 +1,4 @@
 import 'package:flutter/material.dart';
-import 'app/app.dart';
+import 'modern_app.dart';
 
-void main() => runApp(const FitLifeApp());
+void main() => runApp(const ModernFitLifeApp());
