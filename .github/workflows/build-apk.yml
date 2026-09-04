@@ -45,3 +45,5 @@ jobs:
         with:
           name: FitLife-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
+# CI trigger refresh for FitLife 2.0 APK build
