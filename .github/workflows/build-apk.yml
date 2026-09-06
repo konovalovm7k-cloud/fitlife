@@ -25,9 +25,6 @@ jobs:
       - name: Remove generated template tests
         run: rm -f test/widget_test.dart
 
-      - name: Apply FitLife Modern Green design
-        run: python3 tool/apply_design.py
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -46,4 +43,4 @@ jobs:
           name: FitLife-APK
           path: build/app/outputs/flutter-apk/app-release.apk
 
-# CI trigger refresh for FitLife 2.0 APK build
+# FitLife 2.0: source code is built as committed; CI must not rewrite app.dart.
