@@ -20,6 +20,7 @@ class ModernFitLifeApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: bg,
         colorScheme: ColorScheme.fromSeed(seedColor: green),
+        fontFamily: 'sans',
       ),
       home: const FitLifeHome(),
     );
@@ -36,73 +37,33 @@ class FitLifeHome extends StatefulWidget {
 class _FitLifeHomeState extends State<FitLifeHome> {
   int tab = 0;
   double water = 1.5;
+  int eaten = 1247;
+  int protein = 126;
 
   final meals = const <Meal>[
-    Meal(
-      name: 'Завтрак',
-      time: '08:30',
-      kcal: 420,
-      foods: <String>[
-        'Яйца · 3 шт.',
-        'Ветчина из индейки · 120 г',
-        'Яблоко · 100 г',
-      ],
-    ),
-    Meal(
-      name: 'Обед',
-      time: '13:10',
-      kcal: 610,
-      foods: <String>[
-        'Куриная грудка · 250 г',
-        'Гречка · 70 г',
-        'Овощи · 150 г',
-      ],
-    ),
+    Meal('Завтрак', '08:30', 420, ['Яйца · 3 шт.', 'Ветчина из индейки · 120 г', 'Яблоко · 100 г']),
+    Meal('Обед', '13:10', 610, ['Куриная грудка · 250 г', 'Гречка · 70 г', 'Овощи · 150 г']),
   ];
+
+  int get remaining => 1900 - eaten;
+  int get proteinRemaining => 180 - protein;
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      _today(),
-      _diary(),
-      _weight(),
-      _progress(),
-      _profile(),
-    ];
-
+    final pages = <Widget>[_today(), _diary(), _weight(), _progress(), _profile()];
     return Scaffold(
       body: SafeArea(child: pages[tab]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
         backgroundColor: Colors.white,
         indicatorColor: mint,
-        onDestinationSelected: (index) => setState(() => tab = index),
+        onDestinationSelected: (i) => setState(() => tab = i),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Сегодня',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu_rounded),
-            label: 'Питание',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.monitor_weight_outlined),
-            selectedIcon: Icon(Icons.monitor_weight_rounded),
-            label: 'Вес',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.insights_outlined),
-            selectedIcon: Icon(Icons.insights_rounded),
-            label: 'Прогресс',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Профиль',
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Сегодня'),
+          NavigationDestination(icon: Icon(Icons.restaurant_menu_outlined), selectedIcon: Icon(Icons.restaurant_menu_rounded), label: 'Питание'),
+          NavigationDestination(icon: Icon(Icons.monitor_weight_outlined), selectedIcon: Icon(Icons.monitor_weight_rounded), label: 'Вес'),
+          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Прогресс'),
+          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Профиль'),
         ],
       ),
       floatingActionButton: tab <= 1
@@ -120,595 +81,178 @@ class _FitLifeHomeState extends State<FitLifeHome> {
   Widget _today() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
-      children: <Widget>[
+      children: [
         _header('Сегодня', '6 сентября · воскресенье'),
-        const SizedBox(height: 16),
-        _dateStrip(),
-        const SizedBox(height: 16),
-        _calorieCard(),
         const SizedBox(height: 14),
+        _petCard(),
+        const SizedBox(height: 14),
+        _calorieCard(),
+        const SizedBox(height: 12),
         _macroCard(),
         const SizedBox(height: 12),
-        Row(
-          children: <Widget>[
-            _statCard(
-              Icons.water_drop_outlined,
-              'Вода',
-              '${water.toStringAsFixed(1)} л',
-              () => setState(() => water = (water + 0.25).clamp(0, 3)),
-            ),
-            const SizedBox(width: 10),
-            _statCard(Icons.monitor_weight_outlined, 'Вес', '104,2 кг', null),
-            const SizedBox(width: 10),
-            _statCard(Icons.directions_walk_outlined, 'Шаги', '2 840', null),
-          ],
-        ),
-        const SizedBox(height: 22),
-        const Text(
-          'Дневник питания',
-          style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: ink),
-        ),
-        const SizedBox(height: 4),
+        Row(children: [
+          _statCard(Icons.water_drop_outlined, 'Вода', '${water.toStringAsFixed(1)} л', () => setState(() => water = (water + .25).clamp(0, 3))),
+          const SizedBox(width: 8),
+          _statCard(Icons.monitor_weight_outlined, 'Вес', '104,2 кг', _addWeight),
+          const SizedBox(width: 8),
+          _statCard(Icons.directions_walk_outlined, 'Шаги', '2 840', null),
+        ]),
+        const SizedBox(height: 20),
+        _nextAction(),
+        const SizedBox(height: 20),
+        const Text('Дневник питания', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: ink)),
+        const SizedBox(height: 6),
         ...meals.map(_mealCard),
       ],
     );
+  }
+
+  Widget _petCard() {
+    return _surfaceCard(Row(children: [
+      Container(
+        width: 72,
+        height: 72,
+        decoration: const BoxDecoration(color: mint, shape: BoxShape.circle),
+        child: const Center(child: Text('🐼', style: TextStyle(fontSize: 42))),
+      ),
+      const SizedBox(width: 14),
+      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Твой помощник', style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
+        SizedBox(height: 3),
+        Text('Панда на хорошем ходу 💚', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ink)),
+        SizedBox(height: 7),
+        Text('Уровень 4  ·  680 / 1 000 XP', style: TextStyle(color: greenDark, fontWeight: FontWeight.w800)),
+      ])),
+    ]));
+  }
+
+  Widget _nextAction() {
+    return _surfaceCard(Row(children: [
+      Container(width: 44, height: 44, decoration: const BoxDecoration(color: mint, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome, color: greenDark)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Следующий шаг', style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 3),
+        Text('Добери ещё $proteinRemaining г белка', style: const TextStyle(fontWeight: FontWeight.w900, color: ink)),
+        const SizedBox(height: 2),
+        Text('AI Chef может подобрать ужин под остаток $remaining ккал.', style: const TextStyle(color: muted, fontSize: 12)),
+      ])),
+      IconButton(onPressed: _showChefHint, icon: const Icon(Icons.chevron_right_rounded, color: greenDark)),
+    ]));
   }
 
   Widget _diary() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
-      children: <Widget>[
-        _header('Питание', 'Сегодня · 6 сентября'),
-        const SizedBox(height: 16),
-        _surfaceCard(
-          Column(
-            children: <Widget>[
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  Text('1 247 ккал', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: ink)),
-                  Text('из 1 900', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
-                child: const LinearProgressIndicator(
-                  value: 0.656,
-                  minHeight: 9,
-                  color: green,
-                  backgroundColor: mint,
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Row(
-                children: <Widget>[
-                  Metric(label: 'Б', value: '126 г'),
-                  Metric(label: 'Ж', value: '48 г'),
-                  Metric(label: 'У', value: '105 г'),
-                  Metric(label: 'К', value: '21 г'),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...meals.map(_mealCard),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _addFood,
-          icon: const Icon(Icons.add, color: green),
-          label: const Text(
-            'Добавить приём пищи',
-            style: TextStyle(color: ink, fontWeight: FontWeight.w800),
-          ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: line),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          ),
-        ),
+    return ListView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 110), children: [
+      _header('Питание', 'Сегодня · 6 сентября'),
+      const SizedBox(height: 16),
+      _surfaceCard(Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('$eaten ккал', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: ink)),
+          const Text('из 1 900', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
+        ]),
         const SizedBox(height: 12),
-        _surfaceCard(
-          const Row(
-            children: <Widget>[
-              Icon(Icons.auto_awesome, color: green),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Совет FitLife\nБелка осталось немного — хороший ужин поможет закрыть цель.',
-                  style: TextStyle(color: ink, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _weight() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: <Widget>[
-        _header('Вес', 'История и цель'),
-        const SizedBox(height: 16),
-        _surfaceCard(
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('104,2 кг', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: ink)),
-              SizedBox(height: 5),
-              Text('Цель · 85 кг', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
-              SizedBox(height: 22),
-              LinearProgressIndicator(value: 0.23, minHeight: 10, color: green, backgroundColor: mint),
-              SizedBox(height: 10),
-              Text('Прогресс к цели · 23%', style: TextStyle(color: greenDark, fontWeight: FontWeight.w800)),
-            ],
-          ),
-        ),
+        ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: eaten / 1900, minHeight: 9, color: green, backgroundColor: mint)),
         const SizedBox(height: 14),
-        _surfaceCard(
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Динамика веса', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
-              SizedBox(height: 22),
-              Text('104,2 ───╮\n        ╰──╮\n           ╰──── 85 кг', style: TextStyle(fontSize: 18, height: 1.6, fontWeight: FontWeight.w800, color: ink)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        FilledButton.icon(
-          onPressed: _addWeight,
-          style: FilledButton.styleFrom(backgroundColor: green, minimumSize: const Size.fromHeight(52)),
-          icon: const Icon(Icons.add),
-          label: const Text('Добавить вес'),
-        ),
-      ],
-    );
+        const Row(children: [Metric(label: 'Б', value: '126 г'), Metric(label: 'Ж', value: '48 г'), Metric(label: 'У', value: '105 г'), Metric(label: 'К', value: '21 г')]),
+      ])),
+      const SizedBox(height: 10),
+      ...meals.map(_mealCard),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(onPressed: _addFood, icon: const Icon(Icons.add, color: green), label: const Text('Добавить приём пищи', style: TextStyle(color: ink, fontWeight: FontWeight.w800)), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: Colors.white, side: const BorderSide(color: line), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)))),
+    ]);
   }
 
-  Widget _progress() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: <Widget>[
-        _header('Прогресс', 'Твоя динамика'),
-        const SizedBox(height: 16),
-        _surfaceCard(
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('За последние 30 дней', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
-              SizedBox(height: 18),
-              Text('🔥 Отличный темп', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: greenDark)),
-              SizedBox(height: 6),
-              Text('Продолжай придерживаться плана.', style: TextStyle(color: muted)),
-              SizedBox(height: 20),
-              ProgressLine(label: 'Цель по калориям', value: 0.82, text: '82%'),
-              ProgressLine(label: 'Белок', value: 0.74, text: '74%'),
-              ProgressLine(label: 'Вода', value: 0.60, text: '60%'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _weight() => ListView(padding: const EdgeInsets.all(20), children: [
+    _header('Вес', 'История и цель'), const SizedBox(height: 16),
+    _surfaceCard(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('104,2 кг', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: ink)),
+      const SizedBox(height: 5), const Text('Цель · 85 кг', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 22), const LinearProgressIndicator(value: .23, minHeight: 10, color: green, backgroundColor: mint),
+      const SizedBox(height: 10), const Text('Прогресс к цели · 23%', style: TextStyle(color: greenDark, fontWeight: FontWeight.w800)),
+    ])), const SizedBox(height: 14),
+    _surfaceCard(const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Динамика веса', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)), SizedBox(height: 18), Text('104,2 ───╮\n        ╰──╮\n           ╰──── 85 кг', style: TextStyle(fontSize: 18, height: 1.6, fontWeight: FontWeight.w800, color: ink))])),
+    const SizedBox(height: 14), FilledButton.icon(onPressed: _addWeight, style: FilledButton.styleFrom(backgroundColor: green, minimumSize: const Size.fromHeight(52)), icon: const Icon(Icons.add), label: const Text('Добавить вес')),
+  ]);
 
-  Widget _profile() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: <Widget>[
-        _header('Профиль', 'Настройки FitLife'),
-        const SizedBox(height: 16),
-        _surfaceCard(
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Моя цель', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
-              SizedBox(height: 12),
-              Text('Похудение · 85 кг', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
-              SizedBox(height: 18),
-              Text('Дневная цель · 1 900 ккал', style: TextStyle(color: ink, fontWeight: FontWeight.w800)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        _settingTile(Icons.person_outline, 'Личные данные', 'Возраст, рост, пол'),
-        _settingTile(Icons.flag_outlined, 'Цели', 'Вес и темп похудения'),
-        _settingTile(Icons.notifications_none_rounded, 'Напоминания', 'Вода и питание'),
-      ],
-    );
-  }
+  Widget _progress() => ListView(padding: const EdgeInsets.all(20), children: [
+    _header('Прогресс', 'Твоя динамика'), const SizedBox(height: 16),
+    _surfaceCard(const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('За последние 30 дней', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)), SizedBox(height: 18),
+      Text('🔥 Отличный темп', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: greenDark)), SizedBox(height: 6),
+      Text('Смотрим на устойчивые привычки, а не на один день.', style: TextStyle(color: muted)), SizedBox(height: 20),
+      ProgressLine(label: 'Цель по калориям', value: .82, text: '82%'), ProgressLine(label: 'Белок', value: .74, text: '74%'), ProgressLine(label: 'Вода', value: .60, text: '60%'),
+    ])),
+  ]);
 
-  Widget _header(String title, String subtitle) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(title, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: ink)),
-              const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(color: muted, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-        IconButton(
-          onPressed: () => setState(() => tab = 4),
-          icon: const Icon(Icons.person_outline_rounded, color: ink),
-        ),
-      ],
-    );
-  }
+  Widget _profile() => ListView(padding: const EdgeInsets.all(20), children: [
+    _header('Профиль', 'Настройки FitLife'), const SizedBox(height: 16),
+    _surfaceCard(const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Моя цель', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)), SizedBox(height: 12), Text('Похудение · 85 кг', style: TextStyle(color: muted, fontWeight: FontWeight.w700)), SizedBox(height: 18), Text('Дневная цель · 1 900 ккал', style: TextStyle(color: ink, fontWeight: FontWeight.w800))])),
+    const SizedBox(height: 12), _settingTile(Icons.person_outline, 'Личные данные', 'Возраст, рост, пол'), _settingTile(Icons.flag_outlined, 'Цели', 'Вес и темп похудения'), _settingTile(Icons.notifications_none_rounded, 'Напоминания', 'Вода и питание'),
+  ]);
 
-  Widget _dateStrip() {
-    const days = <String>['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
-    const numbers = <String>['31', '1', '2', '3', '4', '5', '6'];
+  Widget _header(String title, String subtitle) => Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: ink)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: muted, fontWeight: FontWeight.w600))])), IconButton(onPressed: () => setState(() => tab = 4), icon: const Icon(Icons.person_outline_rounded, color: ink))]);
 
-    return SizedBox(
-      height: 70,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: days.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          final active = index == days.length - 1;
-          return Container(
-            width: 52,
-            decoration: BoxDecoration(
-              color: active ? green : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: active ? green : line),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text(days[index], style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: active ? Colors.white70 : muted)),
-                Text(numbers[index], style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: active ? Colors.white : ink)),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget _calorieCard() => _darkCard(Row(children: [
+    SizedBox(width: 112, height: 112, child: Stack(alignment: Alignment.center, children: [CircularProgressIndicator(value: eaten / 1900, strokeWidth: 10, color: const Color(0xFF7BE0A8), backgroundColor: const Color(0x334A5A50)), Column(mainAxisSize: MainAxisSize.min, children: [Text('$eaten', style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900, color: Colors.white)), const Text('ккал', style: TextStyle(color: Colors.white60))])])),
+    const SizedBox(width: 18), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Дневная цель', style: TextStyle(color: Colors.white60)), const SizedBox(height: 4), const Text('1 900 ккал', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)), const SizedBox(height: 10), Text('$remaining', style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Color(0xFF7BE0A8))), const Text('осталось сегодня', style: TextStyle(color: Colors.white60))]))
+  ]));
 
-  Widget _calorieCard() {
-    return _darkCard(
-      Row(
-        children: <Widget>[
-          SizedBox(
-            width: 118,
-            height: 118,
-            child: Stack(
-              alignment: Alignment.center,
-              children: <Widget>[
-                const SizedBox(
-                  width: 118,
-                  height: 118,
-                  child: CircularProgressIndicator(
-                    value: 0.656,
-                    strokeWidth: 10,
-                    color: Color(0xFF7BE0A8),
-                    backgroundColor: Color(0x334A5A50),
-                  ),
-                ),
-                const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text('1 247', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Colors.white)),
-                    Text('ккал', style: TextStyle(color: Colors.white60)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 18),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('Дневная цель', style: TextStyle(color: Colors.white60)),
-                SizedBox(height: 4),
-                Text('1 900 ккал', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                SizedBox(height: 12),
-                Text('653', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: Color(0xFF7BE0A8))),
-                Text('осталось сегодня', style: TextStyle(color: Colors.white60)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _macroCard() => _surfaceCard(Column(children: [
+    const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Баланс БЖУ', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ink)), Text('цель · 160–180 г белка', style: TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w700))]),
+    const SizedBox(height: 14), MacroBar(label: 'Белок', value: 126, max: 180, suffix: 'г'), MacroBar(label: 'Жиры', value: 48, max: 65, suffix: 'г'), MacroBar(label: 'Углеводы', value: 105, max: 220, suffix: 'г'), MacroBar(label: 'Клетчатка', value: 21, max: 30, suffix: 'г'),
+  ]));
 
-  Widget _macroCard() {
-    return _surfaceCard(
-      const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text('Баланс макросов', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
-          SizedBox(height: 14),
-          MacroBar(label: 'Белки', value: '126 / 170 г', progress: 0.74, color: green),
-          MacroBar(label: 'Жиры', value: '48 / 60 г', progress: 0.80, color: Color(0xFFE2A53D)),
-          MacroBar(label: 'Углеводы', value: '105 / 180 г', progress: 0.58, color: Color(0xFF718DDA)),
-          SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Icon(Icons.eco_outlined, size: 19, color: green),
-              SizedBox(width: 7),
-              Text('Клетчатка', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
-              Spacer(),
-              Text('21 / 30 г', style: TextStyle(fontWeight: FontWeight.w900, color: ink)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _statCard(IconData icon, String title, String value, VoidCallback? action) => Expanded(child: InkWell(onTap: action, borderRadius: BorderRadius.circular(18), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: line)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 20, color: greenDark), const SizedBox(height: 8), Text(title, style: const TextStyle(fontSize: 11, color: muted)), const SizedBox(height: 2), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: ink))]))));
 
-  Widget _statCard(IconData icon, String title, String value, VoidCallback? onTap) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: _surfaceCard(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(icon, color: green),
-              const SizedBox(height: 7),
-              Text(title, style: const TextStyle(fontSize: 11, color: muted, fontWeight: FontWeight.w700)),
-              Text(value, style: const TextStyle(fontSize: 15, color: ink, fontWeight: FontWeight.w900)),
-            ],
-          ),
-          padding: const EdgeInsets.all(14),
-        ),
-      ),
-    );
-  }
+  Widget _mealCard(Meal meal) => Container(margin: const EdgeInsets.only(top: 10), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: line)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(width: 42, height: 42, decoration: const BoxDecoration(color: mint, shape: BoxShape.circle), child: const Icon(Icons.restaurant_rounded, color: greenDark)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(meal.name, style: const TextStyle(fontWeight: FontWeight.w900, color: ink)), Text('${meal.kcal} ккал', style: const TextStyle(fontWeight: FontWeight.w900, color: greenDark))]), const SizedBox(height: 4), Text('${meal.time} · ${meal.foods.join(', ')}', style: const TextStyle(fontSize: 12, color: muted, height: 1.35))]))]));
 
-  Widget _mealCard(Meal meal) {
-    final breakfast = meal.name == 'Завтрак';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: _surfaceCard(
-        Column(
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(color: mint, borderRadius: BorderRadius.circular(14)),
-                  child: Icon(breakfast ? Icons.free_breakfast_outlined : Icons.lunch_dining_outlined, color: greenDark),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(meal.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ink)),
-                      Text(meal.time, style: const TextStyle(fontSize: 11, color: muted)),
-                    ],
-                  ),
-                ),
-                Text('${meal.kcal} ккал', style: const TextStyle(fontWeight: FontWeight.w900, color: greenDark)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...meal.foods.map(
-              (food) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: <Widget>[
-                    const Icon(Icons.circle, size: 5, color: muted),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(food, style: const TextStyle(color: muted, fontWeight: FontWeight.w600))),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _surfaceCard(Widget child, {EdgeInsets padding = const EdgeInsets.all(18)}) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: line),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(color: Color(0x10000000), blurRadius: 14, offset: Offset(0, 5)),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _darkCard(Widget child) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: ink,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _settingTile(IconData icon, String title, String subtitle) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _surfaceCard(
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: mint,
-            foregroundColor: greenDark,
-            child: Icon(icon),
-          ),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right_rounded),
-        ),
-      ),
-    );
-  }
+  Widget _surfaceCard(Widget child) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: line)), child: child);
+  Widget _darkCard(Widget child) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(22)), child: child);
+  Widget _settingTile(IconData icon, String title, String subtitle) => ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 4), leading: Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: mint, shape: BoxShape.circle), child: Icon(icon, color: greenDark)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)), subtitle: Text(subtitle), trailing: const Icon(Icons.chevron_right_rounded));
 
   void _addFood() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Text('Добавить еду', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 18),
-                ListTile(
-                  leading: const Icon(Icons.search, color: green),
-                  title: const Text('Найти продукт'),
-                  onTap: () => Navigator.pop(sheetContext),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.qr_code_scanner, color: green),
-                  title: const Text('Сканировать штрихкод'),
-                  onTap: () => Navigator.pop(sheetContext),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.edit_outlined, color: green),
-                  title: const Text('Создать свой продукт'),
-                  onTap: () => Navigator.pop(sheetContext),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    showModalBottomSheet(context: context, showDragHandle: true, backgroundColor: Colors.white, builder: (_) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Align(alignment: Alignment.centerLeft, child: Text('Добавить еду', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: ink))), const SizedBox(height: 16), Row(children: [Expanded(child: _actionButton(Icons.camera_alt_outlined, 'Фото', _closeSheet)), const SizedBox(width: 10), Expanded(child: _actionButton(Icons.search, 'Поиск', _closeSheet)), const SizedBox(width: 10), Expanded(child: _actionButton(Icons.flash_on_outlined, 'Быстро', _closeSheet))]), const SizedBox(height: 12), ListTile(leading: const Icon(Icons.auto_awesome, color: greenDark), title: const Text('AI Chef', style: TextStyle(fontWeight: FontWeight.w900)), subtitle: Text('Подобрать блюдо под $remaining ккал и $proteinRemaining г белка'), onTap: _showChefHint)]))));
   }
 
-  void _addWeight() {
-    final controller = TextEditingController(text: '104.2');
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Добавить вес'),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Вес, кг'),
-          ),
-          actions: <Widget>[
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Сохранить')),
-          ],
-        );
-      },
-    ).then((_) => controller.dispose());
-  }
+  Widget _actionButton(IconData icon, String text, VoidCallback action) => FilledButton.tonal(onPressed: action, style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: mint), child: Column(children: [Icon(icon, color: greenDark), const SizedBox(height: 5), Text(text, style: const TextStyle(color: ink, fontWeight: FontWeight.w800))]));
+  void _closeSheet() => Navigator.of(context).pop();
+
+  void _showChefHint() { Navigator.of(context).maybePop(); showDialog(context: context, builder: (_) => AlertDialog(title: const Text('AI Chef'), content: Text('Сейчас осталось $remaining ккал и около $proteinRemaining г белка. Следующим этапом добавим подбор рецептов с приоритетом аэрогриля и готовки без масла.'), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Понятно'))])); }
+
+  void _addWeight() { final controller = TextEditingController(text: '104.2'); showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Добавить вес'), content: TextField(controller: controller, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Вес, кг')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')), FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Сохранить'))])); }
 }
 
 class Meal {
-  const Meal({required this.name, required this.time, required this.kcal, required this.foods});
-
   final String name;
   final String time;
   final int kcal;
   final List<String> foods;
+  const Meal(this.name, this.time, this.kcal, this.foods);
 }
 
 class Metric extends StatelessWidget {
-  const Metric({super.key, required this.label, required this.value});
-
   final String label;
   final String value;
-
+  const Metric({super.key, required this.label, required this.value});
   @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: const TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15, color: ink, fontWeight: FontWeight.w900)),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w700)), const SizedBox(height: 4), Text(value, style: const TextStyle(fontWeight: FontWeight.w900, color: ink))]));
 }
 
 class MacroBar extends StatelessWidget {
-  const MacroBar({super.key, required this.label, required this.value, required this.progress, required this.color});
-
   final String label;
-  final String value;
-  final double progress;
-  final Color color;
-
+  final int value;
+  final int max;
+  final String suffix;
+  const MacroBar({super.key, required this.label, required this.value, required this.max, required this.suffix});
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 11),
-      child: Column(
-        children: <Widget>[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(label, style: const TextStyle(color: muted, fontWeight: FontWeight.w700)),
-              Text(value, style: const TextStyle(color: ink, fontWeight: FontWeight.w800)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(value: progress, minHeight: 7, color: color, backgroundColor: line),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [SizedBox(width: 78, child: Text(label, style: const TextStyle(fontSize: 12, color: muted, fontWeight: FontWeight.w700))), Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: (value / max).clamp(0, 1), minHeight: 8, color: green, backgroundColor: mint))), const SizedBox(width: 10), SizedBox(width: 52, child: Text('$value $suffix', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: ink)))]));
 }
 
 class ProgressLine extends StatelessWidget {
-  const ProgressLine({super.key, required this.label, required this.value, required this.text});
-
   final String label;
   final double value;
   final String text;
-
+  const ProgressLine({super.key, required this.label, required this.value, required this.text});
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        children: <Widget>[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: muted)),
-              Text(text, style: const TextStyle(fontWeight: FontWeight.w900, color: ink)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(value: value, minHeight: 8, color: green, backgroundColor: mint),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 14), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 12, color: muted)), const SizedBox(height: 5), LinearProgressIndicator(value: value, minHeight: 8, color: green, backgroundColor: mint)])), const SizedBox(width: 12), Text(text, style: const TextStyle(fontWeight: FontWeight.w900, color: ink))]));
 }
