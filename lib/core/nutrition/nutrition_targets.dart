@@ -13,5 +13,7 @@ class NutritionTargets {
   };
   static double? vitamin(String key) => vitamins[key.trim()];
   static double? mineral(String key) => minerals[key.trim()];
+  static double? forVitamin(String key) => vitamin(key);
+  static double? forMineral(String key) => mineral(key);
   static double percent(double amount, double? target) => target == null || target <= 0 ? 0 : amount / target * 100;
 }
