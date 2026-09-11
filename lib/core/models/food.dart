@@ -1,3 +1,5 @@
+import 'nutrition_profile.dart';
+
 class Food {
   final String name;
   final int kcal;
@@ -5,6 +7,7 @@ class Food {
   final double fat;
   final double carbs;
   final double fiber;
+  final NutritionProfile? nutrition;
 
   const Food({
     required this.name,
@@ -13,6 +16,7 @@ class Food {
     required this.fat,
     required this.carbs,
     this.fiber = 0,
+    this.nutrition,
   });
 
   factory Food.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,11 @@ class Food {
       fat: (json['fat'] as num?)?.toDouble() ?? 0,
       carbs: (json['carbs'] as num?)?.toDouble() ?? 0,
       fiber: (json['fiber'] as num?)?.toDouble() ?? 0,
+      nutrition: json['nutrition'] is Map
+          ? NutritionProfile.fromJson(
+              Map<String, dynamic>.from(json['nutrition'] as Map),
+            )
+          : null,
     );
   }
 
@@ -33,5 +42,6 @@ class Food {
         'fat': fat,
         'carbs': carbs,
         'fiber': fiber,
+        if (nutrition != null) 'nutrition': nutrition!.toJson(),
       };
 }
