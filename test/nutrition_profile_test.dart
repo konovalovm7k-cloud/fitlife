@@ -4,7 +4,7 @@ import 'package:fitlife/core/nutrition/nutrition_database.dart';
 
 void main() {
   test('portion scales macros and micronutrients from 100 g', () {
-    final source = nutritionDatabase.single.profile;
+    final source = nutritionDatabase.first.profile;
     final portion = source.portion(250);
 
     expect(portion.kcal, closeTo(1685, 0.001));
@@ -42,7 +42,7 @@ void main() {
   });
 
   test('source-linked seed matches the referenced product card', () {
-    final item = nutritionDatabase.single;
+    final item = nutritionDatabase.first;
     expect(item.id, 'healthdiet_17523');
     expect(item.profile.kcal, 674);
     expect(item.profile.protein, 8.2);
