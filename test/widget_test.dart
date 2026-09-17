@@ -1,12 +1,45 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fitlife/app/app.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fitlife/main.dart';
 
 void main() {
-  testWidgets('FitLife launches with diary dashboard', (tester) async {
-    await tester.pumpWidget(const FitLifeApp());
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('FitLife launches and navigation responds to taps', (tester) async {
+    await tester.pumpWidget(const FitLifeRoot());
     await tester.pumpAndSettle();
+
     expect(find.text('Сегодня'), findsWidgets);
-    expect(find.text('Калории'), findsOneWidget);
-    expect(find.text('Ежедневный чек-ин'), findsOneWidget);
+    expect(find.text('Твой помощник'), findsOneWidget);
+
+    await tester.tap(find.text('Питание').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Поиск, избранное и последние продукты'), findsOneWidget);
+
+    await tester.tap(find.text('Камера').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Фото блюда → подтверждение'), findsOneWidget);
+
+    await tester.tap(find.text('Прогресс').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Прогресс'), findsWidgets);
+
+    await tester.tap(find.text('Профиль').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Профиль'), findsWidgets);
+  });
+
+  testWidgets('Nutrition database button opens catalog', (tester) async {
+    await tester.pumpWidget(const FitLifeRoot());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('База продуктов'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('База продуктов'), findsOneWidget);
+    expect(find.text('Поиск продуктов'), findsOneWidget);
+    expect(find.text('Жир говяжий, сырой'), findsOneWidget);
   });
 }
