@@ -30,7 +30,8 @@ only targets that earlier interface and must not run as part of a build.
 
 Flutter is pinned to 3.44.7, Dart to the SDK bundled with that release, and
 Android uses Java 17. Android project files and pubspec.lock belong in Git.
-CI builds the committed application without generating or rewriting source
+CI uses Ubuntu 24.04 and Node 24-compatible GitHub actions with pinned release
+versions. It builds the committed application without generating or rewriting source
 files and runs every test, including widget tests.
 
 Run from the repository root:
