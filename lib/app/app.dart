@@ -1299,9 +1299,9 @@ class _WeightChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final left = 42.0;
+    const left = 42.0;
     final right = size.width - 12;
-    final top = 18.0;
+    const top = 18.0;
     final bottom = size.height - 28;
     final chartWidth = right - left;
     final chartHeight = bottom - top;

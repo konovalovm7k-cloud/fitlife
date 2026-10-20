@@ -1,7 +1,39 @@
-# FitLife
+# FitLife 4.3
 
-Умный дневник похудения.
+Офлайн-дневник питания на Flutter: калории и макросы, продукты и порции,
+избранное, собственные продукты, вода по дням и редактирование целей.
+Записи сохраняются на устройстве. Дата на главном экране открывает историю.
 
-CI build validation enabled.
+Камера и галерея помогают вручную подтвердить продукты по фотографии.
+Серверное AI-распознавание в эту версию не входит.
 
-Nutrition engine: source-linked micronutrients, vitamins, minerals, amino acids and fatty-acid data.
+## Проверка и сборка
+
+Flutter **3.44.7**, Dart **3.12.2**, JDK **17**, Android SDK **36**.
+Android-проект и `pubspec.lock` уже в репозитории. Не запускайте
+`flutter create` поверх проекта для обычной сборки.
+
+```sh
+flutter pub get --enforce-lockfile
+flutter analyze
+flutter test
+flutter build apk --release --no-pub
+```
+
+APK: `build/app/outputs/flutter-apk/app-release.apk`. Поддерживается Android 7.0+.
+Инструкция облачной сборки и подписи: [CLOUD_BUILD.md](CLOUD_BUILD.md).
+Обзор структуры: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Превью интерфейса
+
+```sh
+flutter test test/support/preview_ui.dart
+```
+
+Команда создаёт PNG экранов в `dist/` с тестовыми записями и настоящими шрифтами.
+Тестовые данные не попадают в установленное приложение.
+Manrope поставляется локально с лицензией SIL OFL в `assets/fonts/OFL.txt`.
+
+Интерфейс развивает собственный зелёный стиль FitLife. Идея короткого пути
+от записи еды к понятному дневному балансу вдохновлена
+[Journable](https://www.journable.com/), без копирования экранов и ассетов.
