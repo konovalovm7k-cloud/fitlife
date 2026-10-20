@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -489,7 +490,9 @@ const builtInFoods = <FoodItem>[
 ];
 
 class FitLifeHome extends StatefulWidget {
-  const FitLifeHome({super.key});
+  const FitLifeHome({super.key, this.preferencesLoader});
+
+  final Future<SharedPreferences> Function()? preferencesLoader;
 
   @override
   State<FitLifeHome> createState() => _FitLifeHomeState();
@@ -511,6 +514,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   double water = 0;
   double weight = 104.2;
   bool loading = true;
+  bool loadFailed = false;
+  int _loadAttempt = 0;
   File? photo;
   DateTime day = DateUtils.dateOnly(DateTime.now());
   DateTime _lastToday = DateUtils.dateOnly(DateTime.now());
@@ -583,7 +588,54 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
 
   Future<void> _load() async {
     final key = dayKey;
-    final prefs = await SharedPreferences.getInstance();
+    final attempt = ++_loadAttempt;
+    setState(() {
+      loading = true;
+      loadFailed = false;
+    });
+    try {
+      final data = await _readSavedDay(
+        key,
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
+      final store = data.store;
+      setState(() {
+        water = store.number('water_$key', 0, allowZero: true);
+        weight = store.number('weight', 104.2);
+        kcalTarget = store.number('goal_calories', 1900);
+        proteinTarget = store.number('goal_protein', 180);
+        fatTarget = store.number('goal_fat', 65);
+        fiberTarget = store.number('goal_fiber', 30);
+        favorites = data.favorites;
+        recent = data.recent;
+        diary = data.diary;
+        customFoods = data.foods;
+        recoveredData = store.recoveredData;
+        loading = false;
+      });
+    } catch (error) {
+      // Do not open a writable empty diary when its real data could not be read.
+      debugPrint('FitLife storage initialization failed: ${error.runtimeType}');
+      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
+      setState(() {
+        loading = false;
+        loadFailed = true;
+      });
+    }
+  }
+
+  Future<
+    ({
+      DiaryPreferences store,
+      List<DiaryItem> diary,
+      List<FoodItem> foods,
+      List<String> favorites,
+      List<String> recent,
+    })
+  >
+  _readSavedDay(String key) async {
+    final prefs =
+        await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
     final store = DiaryPreferences(prefs);
     final savedDiary = await store.readRecords(
       'diary_$key',
@@ -593,6 +645,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       'custom_foods',
       FoodItem.fromJson,
     );
+    final savedFavorites = await store.readStringList('favorites');
+    final savedRecent = await store.readStringList('recent');
     if (!prefs.containsKey('water_migrated')) {
       if (!prefs.containsKey('water_$key')) {
         await prefs.setDouble(
@@ -603,24 +657,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       await prefs.setBool('water_migrated', true);
     }
 
-    if (!mounted || key != dayKey) {
-      return;
-    }
-
-    setState(() {
-      water = store.number('water_$key', 0, allowZero: true);
-      weight = store.number('weight', 104.2);
-      kcalTarget = store.number('goal_calories', 1900);
-      proteinTarget = store.number('goal_protein', 180);
-      fatTarget = store.number('goal_fat', 65);
-      fiberTarget = store.number('goal_fiber', 30);
-      favorites = prefs.getStringList('favorites') ?? [];
-      recent = prefs.getStringList('recent') ?? [];
-      diary = savedDiary;
-      customFoods = savedFoods;
-      recoveredData = store.recoveredData;
-      loading = false;
-    });
+    return (
+      store: store,
+      diary: savedDiary,
+      foods: savedFoods,
+      favorites: savedFavorites,
+      recent: savedRecent,
+    );
   }
 
   Future<void> _saveDiary() async {
@@ -654,6 +697,41 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     if (loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(color: green)),
+      );
+    }
+    if (loadFailed) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.storage_rounded, size: 48, color: green),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Не удалось открыть дневник',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Локальное хранилище не ответило. Попробуйте ещё раз. '
+                    'Мы не удаляли ваши записи.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Повторить'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 

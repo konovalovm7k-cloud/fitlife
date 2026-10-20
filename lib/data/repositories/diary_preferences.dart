@@ -46,4 +46,21 @@ class DiaryPreferences {
     if (allowZero ? value < 0 : value <= 0) return fallback;
     return value.toDouble();
   }
+
+  Future<List<String>> readStringList(String key) async {
+    final value = preferences.get(key);
+    if (value == null) return [];
+    if (value is List && value.every((item) => item is String)) {
+      return value.cast<String>().toList();
+    }
+    recoveredData = true;
+    if (!preferences.containsKey('recovery_$key')) {
+      final saved = await preferences.setString(
+        'recovery_$key',
+        jsonEncode(value),
+      );
+      if (!saved) throw StateError('Could not preserve damaged $key');
+    }
+    return value is List ? value.whereType<String>().toList() : [];
+  }
 }

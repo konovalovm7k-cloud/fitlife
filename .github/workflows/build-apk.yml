@@ -69,4 +69,30 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke test the actual release APK
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7_pro
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: python3 tool/android_release_smoke.py build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload release smoke-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: FitLife-Android-Smoke
+          path: build/release-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
+
 # FitLife 2.0: source code is built as committed; CI must not rewrite app.dart.
