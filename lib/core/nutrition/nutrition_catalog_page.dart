@@ -23,6 +23,7 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
   final _search = TextEditingController();
   final _catalog = const NutritionCatalog();
   late NutritionDay _day = widget.initialDay;
+  bool _adding = false;
 
   @override
   void dispose() {
@@ -103,14 +104,27 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
   }
 
   Future<void> _addFood(NutritionFoodRecord food) async {
-    final grams = await _askGrams(food.name);
-    if (!mounted || grams == null || !grams.isFinite || grams <= 0) return;
-    await widget.onAdd?.call(NutritionDayEntry(food: food, grams: grams));
-    if (!mounted) return;
-    setState(() => _day = _day.add(food, grams));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('${food.name}: добавлено $grams г')));
+    if (_adding) return;
+    _adding = true;
+    try {
+      final grams = await _askGrams(food.name);
+      if (!mounted || grams == null || !grams.isFinite || grams <= 0) return;
+      await widget.onAdd?.call(NutritionDayEntry(food: food, grams: grams));
+      if (!mounted) return;
+      setState(() => _day = _day.add(food, grams));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${food.name}: добавлено $grams г')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось сохранить продукт. Попробуй ещё раз.'),
+        ),
+      );
+    } finally {
+      _adding = false;
+    }
   }
 
   Future<double?> _askGrams(String name) async {

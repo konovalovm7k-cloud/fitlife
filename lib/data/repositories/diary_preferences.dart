@@ -33,9 +33,7 @@ class DiaryPreferences {
     if (damaged) {
       recoveredData = true;
       // Retain the original data before a later save replaces the damaged list.
-      if (raw is String && !preferences.containsKey('recovery_$key')) {
-        await preferences.setString('recovery_$key', raw);
-      }
+      await _preserve(key, raw);
     }
     return records;
   }
@@ -54,13 +52,22 @@ class DiaryPreferences {
       return value.cast<String>().toList();
     }
     recoveredData = true;
-    if (!preferences.containsKey('recovery_$key')) {
+    await _preserve(key, value);
+    return value is List ? value.whereType<String>().toList() : [];
+  }
+
+  Future<void> _preserve(String key, Object raw) async {
+    if (preferences.containsKey('recovery_$key')) return;
+    try {
       final saved = await preferences.setString(
         'recovery_$key',
-        jsonEncode(value),
+        raw is String ? raw : jsonEncode(raw),
       );
       if (!saved) throw StateError('Could not preserve damaged $key');
+    } catch (_) {
+      // Drop the optimistic cache entry so retry actually writes the backup.
+      await preferences.reload();
+      rethrow;
     }
-    return value is List ? value.whereType<String>().toList() : [];
   }
 }

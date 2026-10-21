@@ -15,6 +15,7 @@ import 'core/nutrition/nutrition_catalog_page.dart';
 import 'core/nutrition/nutrition_database.dart';
 import 'core/nutrition/nutrition_day.dart';
 import 'data/repositories/diary_preferences.dart';
+import 'data/repositories/diary_repository.dart';
 import 'features/photo_analysis/photo_diary.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
@@ -549,11 +550,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _saveDiary() async {
-    final key = 'diary_$dayKey';
-    final value = jsonEncode(diary.map((item) => item.toJson()).toList());
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
+  Future<void> _writeDiaryEntry(String key, DiaryItem entry) async {
+    final prefs =
+        await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
+    final saved = await DiaryRepository(prefs).upsert('diary_$key', entry);
+    if (mounted && key == dayKey) setState(() => diary = saved);
   }
 
   Future<void> _saveLists() async {
@@ -1317,6 +1318,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _openCatalog() async {
+    final key = dayKey;
     final entries = diary
         .map(
           (entry) => NutritionDayEntry(
@@ -1350,20 +1352,33 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               fiber: p.fiber,
               nutrition: p,
             );
-            setState(() {
-              if (_foodById(food.id) == null) customFoods.add(food);
-              diary.add(
-                DiaryItem(
-                  id: DateTime.now().microsecondsSinceEpoch.toString(),
-                  meal: _suggestedMeal(),
-                  food: food,
-                  grams: entry.grams,
-                  time: TimeOfDay.now().format(context),
+            if (_foodById(food.id) == null) {
+              final prefs =
+                  await (widget.preferencesLoader ??
+                      SharedPreferences.getInstance)();
+              final saved = await prefs.setString(
+                'custom_foods',
+                jsonEncode(
+                  [...customFoods, food].map((item) => item.toJson()).toList(),
                 ),
               );
-            });
-            await _saveDiary();
-            await _saveFoods();
+              if (!saved) {
+                await prefs.reload();
+                throw StateError('Could not save catalogue food');
+              }
+              if (!mounted) return;
+              setState(() => customFoods.add(food));
+            }
+            await _writeDiaryEntry(
+              key,
+              DiaryItem(
+                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                meal: _suggestedMeal(),
+                food: food,
+                grams: entry.grams,
+                time: TimeOfDay.now().format(context),
+              ),
+            );
           },
         ),
       ),
@@ -1381,6 +1396,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _addFood({FoodItem? preselected}) async {
+    final key = dayKey;
+    final entryId = DateTime.now().microsecondsSinceEpoch.toString();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1401,22 +1418,23 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
           _saveLists();
         },
         onAdd: (food, grams, meal) async {
+          await _writeDiaryEntry(
+            key,
+            DiaryItem(
+              id: entryId,
+              meal: meal,
+              food: food,
+              grams: grams,
+              time: TimeOfDay.now().format(context),
+            ),
+          );
+          if (!mounted) return;
           setState(() {
-            diary.add(
-              DiaryItem(
-                id: DateTime.now().microsecondsSinceEpoch.toString(),
-                meal: meal,
-                food: food,
-                grams: grams,
-                time: TimeOfDay.now().format(context),
-              ),
-            );
             recent = [
               food.id,
               ...recent.where((id) => id != food.id),
             ].take(10).toList();
           });
-          await _saveDiary();
           await _saveLists();
         },
       ),
@@ -1424,6 +1442,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _editDiaryItem(DiaryItem item) async {
+    final key = dayKey;
     final result = await showDialog<ValueEditResult>(
       context: context,
       builder: (_) => ValueEditorDialog(
@@ -1433,22 +1452,40 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       ),
     );
     if (!mounted || result == null) return;
-    final index = diary.indexWhere((entry) => entry.id == item.id);
-    if (index < 0) return;
-    setState(() {
-      if (result.deleted) {
-        diary.removeAt(index);
-      } else {
-        diary[index] = DiaryItem(
-          id: item.id,
-          meal: item.meal,
-          food: item.food,
-          grams: result.values.first,
-          time: item.time,
-        );
-      }
-    });
-    await _saveDiary();
+    try {
+      final prefs =
+          await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
+      final saved = await DiaryRepository(prefs).update('diary_$key', (
+        current,
+      ) {
+        if (result.deleted) {
+          return current.where((entry) => entry.id != item.id).toList();
+        }
+        return current
+            .map(
+              (entry) => entry.id != item.id
+                  ? entry
+                  : DiaryItem(
+                      id: item.id,
+                      meal: item.meal,
+                      food: item.food,
+                      grams: result.values.first,
+                      time: item.time,
+                    ),
+            )
+            .toList();
+      });
+      if (mounted && key == dayKey) setState(() => diary = saved);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Не удалось сохранить изменения. Запись сохранена без изменений.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _addCustomFood() async {
@@ -1581,9 +1618,20 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
       return;
     }
     if (_selected == null || _saving) return;
-    setState(() => _saving = true);
-    await widget.onAdd(_selected!, grams, _meal);
-    if (mounted) Navigator.pop(context);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onAdd(_selected!, grams, _meal);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'Не удалось сохранить. Проверь свободное место и повтори.';
+      });
+    }
   }
 
   @override
