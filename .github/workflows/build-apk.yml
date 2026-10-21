@@ -14,6 +14,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  photo-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Test photo server and atomic SQL quotas
+        working-directory: server
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+          node --test
+          pnpm exec wrangler deploy --dry-run --outdir dist/worker
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

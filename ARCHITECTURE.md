@@ -3,8 +3,9 @@
 ## Active application
 
 `lib/main.dart` is the production entry point. It creates a single MaterialApp.
-`lib/modern_app.dart` contains the active five-tab application, food and diary
-models, camera integration, and persistence orchestration. Existing SharedPreferences
+`lib/modern_app.dart` contains the active five-tab application and persistence
+orchestration. Food/diary models now live in `lib/core/models/diary_item.dart`,
+re-exported by the shell for compatibility. Existing SharedPreferences
 keys are retained so installed users keep their diary, foods and favourites.
 `lib/app/fitlife_theme.dart` and `lib/app/widgets/` contain the shared theme,
 nutrition summary, companion drawing and validated input dialogs.
@@ -43,6 +44,27 @@ flutter test
 flutter build apk --release --no-pub
 ```
 
-The application is an offline diary. The camera provides a photo followed by
-manual product confirmation. No remote AI recognition or medical document
-analysis service is configured in this repository.
+## Photo Analysis
+
+`lib/features/photo_analysis/` contains image preparation (resize, orientation,
+EXIF removal in an isolate), the HTTPS client, encrypted connection settings,
+the camera page, and editable review. Network/storage waits have finite timeouts.
+No network request occurs without a user action and upload consent. The diary
+stays offline; only the selected photo goes to the configured server.
+
+`photo_diary.dart` persists a confirmed batch in a single existing diary key,
+with stable IDs, an immutable target date, and an estimate marker. Retrying
+replaces that batch, preserving unrelated entries and applying later edits.
+Photo-derived foods are embedded in entries, not silently added to the catalogue.
+
+`server/src/entry.mjs` is the Cloudflare Worker entry point; `worker.mjs` handles
+authenticated uploads, strict input/output validation and Gemini structured output.
+`server/migrations/` defines D1 users and request reservations. A single conditional
+SQL INSERT enforces per-user and global quotas across concurrent isolates. User
+tokens are random 256-bit values; D1 stores their hashes. Gemini credentials are
+Worker Secrets. No photos/results are persisted or logged. Reservations expire
+after 30 days via scheduled cleanup. Read replication is not enabled.
+
+The server is intended for an invited small group. Runtime tests use real
+workerd/D1 with a mock provider; real Gemini activation requires the owner's
+accounts, key and HTTPS deployment. See `server/SETUP_RU.md`.

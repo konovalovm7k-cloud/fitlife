@@ -4,6 +4,9 @@ import 'dart:ui' as ui;
 
 import 'package:fitlife/main.dart';
 import 'package:fitlife/modern_app.dart';
+import 'package:fitlife/features/photo_analysis/photo_models.dart';
+import 'package:fitlife/features/photo_analysis/photo_review_page.dart';
+import 'package:fitlife/core/models/nutrition_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +111,49 @@ void main() {
     await tester.tap(find.text('Яйцо'));
     await tester.pumpAndSettle();
     await capture('add-food');
+    final navigator = Navigator.of(tester.element(find.byType(FitLifeHome)));
+    navigator.pop();
+    await tester.pumpAndSettle();
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) => PhotoReviewPage(
+          analysis: PhotoAnalysis(
+            requestId: 'a' * 32,
+            items: const [
+              PhotoFood(
+                name: 'Рис варёный',
+                grams: 180,
+                confidence: 'medium',
+                nutrition: NutritionProfile(
+                  kcal: 130,
+                  protein: 2.7,
+                  fat: 0.3,
+                  carbs: 28,
+                  fiber: 0.4,
+                ),
+              ),
+              PhotoFood(
+                name: 'Курица запечённая',
+                grams: 140,
+                confidence: 'high',
+                nutrition: NutritionProfile(
+                  kcal: 165,
+                  protein: 31,
+                  fat: 3.6,
+                  carbs: 0,
+                ),
+              ),
+            ],
+            warnings: const ['Уточните количество масла и соуса.'],
+          ),
+          day: now,
+          initialMeal: 'Обед',
+          onSave: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await capture('photo-review');
     debugDisableShadows = true;
   });
 }

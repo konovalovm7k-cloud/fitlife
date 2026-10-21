@@ -17,6 +17,13 @@ HOME = "FITLIFE"
 ADD_FOOD = "\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0435\u0434\u0443"
 WATER = "\u0412\u043e\u0434\u0430"
 SAVED_WATER = "0.25 \u043b"
+CAMERA = "\u041a\u0430\u043c\u0435\u0440\u0430"
+CONNECT = "\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0441\u0435\u0440\u0432\u0435\u0440 \u0440\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0432\u0430\u043d\u0438\u044f"
+SERVER_ADDRESS = "\u0410\u0434\u0440\u0435\u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u0430 HTTPS"
+ACCESS_CODE = "\u041b\u0438\u0447\u043d\u044b\u0439 \u043a\u043e\u0434 \u0434\u043e\u0441\u0442\u0443\u043f\u0430"
+SAVE_CONNECTION = "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435"
+REMOVE_CONNECTION = "\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435"
+PHOTO_TITLE = "\u0424\u043e\u0442\u043e \u0431\u043b\u044e\u0434\u0430"
 
 
 class ReleaseSmoke:
@@ -59,9 +66,18 @@ class ReleaseSmoke:
     def tap(self, label):
         nodes = self.wait_for(label)
         node = next(n for n in nodes if label in self.label(n))
+        self.tap_node(node)
+
+    def tap_field(self, index):
+        fields = [n for n in self.read_screen() if n.get("class") == "android.widget.EditText"]
+        if len(fields) != 2 or fields[index].get("enabled") != "true":
+            raise AssertionError("Connection fields are not ready")
+        self.tap_node(fields[index])
+
+    def tap_node(self, node):
         bounds = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
         if len(bounds) != 4:
-            raise AssertionError(f"No tappable bounds for {label!r}")
+            raise AssertionError("No tappable bounds")
         left, top, right, bottom = bounds
         self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
 
@@ -103,7 +119,29 @@ class ReleaseSmoke:
             self.launch()
             self.wait_for(SAVED_WATER)
             self.capture("update-relaunch")
-            print("PASS: release startup, native preferences, cold relaunch, in-place update")
+            self.tap(CAMERA)
+            self.tap(CONNECT)
+            self.wait_for(SAVE_CONNECTION)
+            self.tap(REMOVE_CONNECTION)
+            time.sleep(1)
+            self.tap_field(0)
+            self.adb("shell", "input", "text", "https://fitlife-smoke.example.com")
+            self.tap_field(1)
+            self.adb("shell", "input", "text", "a" * 43)
+            self.adb("shell", "input", "keyevent", "111")
+            self.tap(SAVE_CONNECTION)
+            self.wait_for(PHOTO_TITLE)
+            self.launch()
+            self.tap(CAMERA)
+            self.tap(CONNECT)
+            self.wait_for("https://fitlife-smoke.example.com")
+            self.capture("secure-connection-relaunch")
+            self.tap(REMOVE_CONNECTION)
+            time.sleep(1)
+            nodes = self.read_screen()
+            if any("https://fitlife-smoke.example.com" in self.label(n) for n in nodes):
+                raise AssertionError("Secure connection was not removed")
+            print("PASS: release startup, native preferences, relaunch, update, encrypted connection save/read/delete")
         except Exception:
             try:
                 self.capture("failure")

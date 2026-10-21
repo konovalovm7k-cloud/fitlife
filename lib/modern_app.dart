@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 
@@ -12,11 +10,17 @@ import 'app/fitlife_theme.dart';
 import 'app/widgets/day_nutrition_summary.dart';
 import 'app/widgets/companion_avatar.dart';
 import 'app/widgets/value_editor.dart';
-import 'core/models/nutrition_profile.dart';
+import 'core/models/diary_item.dart';
 import 'core/nutrition/nutrition_catalog_page.dart';
 import 'core/nutrition/nutrition_database.dart';
 import 'core/nutrition/nutrition_day.dart';
 import 'data/repositories/diary_preferences.dart';
+import 'features/photo_analysis/photo_diary.dart';
+import 'features/photo_analysis/photo_models.dart';
+import 'features/photo_analysis/photo_page.dart';
+import 'features/photo_analysis/photo_settings_page.dart';
+
+export 'core/models/diary_item.dart';
 
 class ModernFitLifeApp extends StatelessWidget {
   const ModernFitLifeApp({super.key});
@@ -33,124 +37,6 @@ class ModernFitLifeApp extends StatelessWidget {
       home: const FitLifeHome(),
     );
   }
-}
-
-class FoodItem {
-  const FoodItem({
-    required this.id,
-    required this.name,
-    required this.kcal,
-    required this.protein,
-    required this.fat,
-    required this.carbs,
-    required this.fiber,
-    this.nutrition,
-  });
-
-  final String id;
-  final String name;
-  final double kcal;
-  final double protein;
-  final double fat;
-  final double carbs;
-  final double fiber;
-  final NutritionProfile? nutrition;
-
-  NutritionProfile get profile =>
-      nutrition ??
-      NutritionProfile(
-        kcal: kcal,
-        protein: protein,
-        fat: fat,
-        carbs: carbs,
-        fiber: fiber,
-      );
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'kcal': kcal,
-      'protein': protein,
-      'fat': fat,
-      'carbs': carbs,
-      'fiber': fiber,
-      if (nutrition != null) 'nutrition': nutrition!.toJson(),
-    };
-  }
-
-  factory FoodItem.fromJson(Map<String, dynamic> json) {
-    return FoodItem(
-      id: _requiredString(json['id']),
-      name: _requiredString(json['name']),
-      kcal: _storedNumber(json['kcal']),
-      protein: _storedNumber(json['protein']),
-      fat: _storedNumber(json['fat']),
-      carbs: _storedNumber(json['carbs']),
-      fiber: _storedNumber(json['fiber']),
-      nutrition: json['nutrition'] == null
-          ? null
-          : NutritionProfile.fromJson(
-              Map<String, dynamic>.from(json['nutrition'] as Map),
-            ),
-    );
-  }
-}
-
-class DiaryItem {
-  const DiaryItem({
-    required this.id,
-    required this.meal,
-    required this.food,
-    required this.grams,
-    required this.time,
-  });
-
-  final String id;
-  final String meal;
-  final FoodItem food;
-  final double grams;
-  final String time;
-
-  double get kcal => food.kcal * grams / 100;
-  double get protein => food.protein * grams / 100;
-  double get fat => food.fat * grams / 100;
-  double get carbs => food.carbs * grams / 100;
-  double get fiber => food.fiber * grams / 100;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'meal': meal,
-      'food': food.toJson(),
-      'grams': grams,
-      'time': time,
-    };
-  }
-
-  factory DiaryItem.fromJson(Map<String, dynamic> json) {
-    return DiaryItem(
-      id: json['id'] as String,
-      meal: json['meal'] as String,
-      food: FoodItem.fromJson(Map<String, dynamic>.from(json['food'] as Map)),
-      grams: _storedNumber(json['grams'], positive: true),
-      time: json['time'] as String,
-    );
-  }
-}
-
-String _requiredString(dynamic value) {
-  if (value is! String || value.trim().isEmpty) {
-    throw const FormatException('Missing record text');
-  }
-  return value;
-}
-
-double _storedNumber(dynamic value, {bool positive = false}) {
-  if (value is! num || !value.isFinite || (positive ? value <= 0 : value < 0)) {
-    throw const FormatException('Invalid nutrition value');
-  }
-  return value.toDouble();
 }
 
 const builtInFoods = <FoodItem>[
@@ -508,15 +394,12 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
           .clamp(0, kcalTarget)
           .toDouble();
 
-  final ImagePicker picker = ImagePicker();
-
   int tab = 0;
   double water = 0;
   double weight = 104.2;
   bool loading = true;
   bool loadFailed = false;
   int _loadAttempt = 0;
-  File? photo;
   DateTime day = DateUtils.dateOnly(DateTime.now());
   DateTime _lastToday = DateUtils.dateOnly(DateTime.now());
   bool recoveredData = false;
@@ -1046,90 +929,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Widget _cameraPage() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
-      children: [
-        _header('Камера', 'Фото блюда → подтверждение'),
-        const SizedBox(height: 14),
-        _card(
-          Column(
-            children: [
-              if (photo != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Image.file(
-                    photo!,
-                    height: 240,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              else
-                const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Icon(
-                    Icons.photo_camera_back_outlined,
-                    size: 80,
-                    color: greenDark,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => _pickPhoto(ImageSource.camera),
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Камера'),
-                      style: FilledButton.styleFrom(backgroundColor: green),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _pickPhoto(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library),
-                      label: const Text('Галерея'),
-                    ),
-                  ),
-                ],
-              ),
-              if (photo != null) ...[
-                const SizedBox(height: 14),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Следующий шаг',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: ink,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Выбери продукты и уточни порции по фото. Так в дневник попадёт именно то, что было в твоём блюде.',
-                    style: TextStyle(color: muted),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: _addFood,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Подтвердить и выбрать продукты'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: green,
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+    return PhotoPage(
+      day: day,
+      meal: _suggestedMeal(),
+      onManual: _addFood,
+      onSave: _savePhotoMeal,
     );
   }
 
@@ -1242,9 +1046,16 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         const SizedBox(height: 12),
         _card(
           const Text(
-            'Твой дневник хранится на этом устройстве и работает без интернета. Фотографии помогают вручную уточнить состав блюда.',
+            'Твой дневник хранится на этом устройстве и работает без интернета. Анализ фото использует интернет и общий сервер; отправка только с твоего согласия.',
             style: TextStyle(color: muted),
           ),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(builder: (_) => const PhotoSettingsPage()),
+          ),
+          icon: const Icon(Icons.cloud_outlined),
+          label: const Text('Распознавание по фото'),
         ),
       ],
     );
@@ -1436,7 +1247,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  '${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
+                  '${item.food.isPhotoEstimate ? 'Оценка по фото · ' : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
                 ),
                 trailing: IconButton(
                   tooltip: 'Изменить порцию',
@@ -1559,21 +1370,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _pickPhoto(ImageSource source) async {
-    try {
-      final result = await picker.pickImage(source: source, imageQuality: 88);
-      if (mounted && result != null) {
-        setState(() => photo = File(result.path));
-      }
-    } on PlatformException {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Не удалось открыть фото. Проверь доступ к камере и галерее в настройках телефона.',
-          ),
-        ),
-      );
+  Future<void> _savePhotoMeal(PhotoMeal meal) async {
+    final saved = await savePhotoMeal(
+      meal,
+      preferencesLoader: widget.preferencesLoader,
+    ).timeout(const Duration(seconds: 15));
+    if (mounted && DateUtils.isSameDay(day, meal.day)) {
+      setState(() => diary = saved);
     }
   }
 

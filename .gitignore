@@ -23,3 +23,9 @@ android/app/release/
 # Local delivery artifacts
 dist/
 __pycache__/
+node_modules/
+.wrangler/
+.dev.vars
+.env
+server/private/
+server/dist/
