@@ -65,7 +65,7 @@ void main() {
     },
   );
 
-  testWidgets('failed edit leaves stored and displayed diary unchanged', (
+  testWidgets('failed edits and deletion retain drafts and allow retry', (
     tester,
   ) async {
     final disk = DiaryDisk();
@@ -94,13 +94,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(prefs.getString(key), raw);
     expect(
-      find.text(
-        'Не удалось сохранить изменения. Запись сохранена без изменений.',
-      ),
+      find.text('Не удалось сохранить. Проверь свободное место и повтори.'),
       findsOneWidget,
     );
-    expect(tester.takeException(), isNull);
+    expect(
+      tester.widget<TextFormField>(find.byType(TextFormField)).controller!.text,
+      '250',
+    );
     disk.fail = false;
+    await tester.tap(find.text('Сохранить'));
+    await tester.pumpAndSettle();
+    expect((jsonDecode(prefs.getString(key)!) as List).single['grams'], 250);
+    await tester.tap(find.byTooltip('Изменить порцию'));
+    await tester.pumpAndSettle();
+    disk.fail = true;
+    await tester.tap(find.text('Удалить'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Не удалось сохранить. Проверь свободное место и повтори.'),
+      findsOneWidget,
+    );
+    expect((jsonDecode(prefs.getString(key)!) as List).single['grams'], 250);
+    disk.fail = false;
+    await tester.tap(find.text('Удалить'));
+    await tester.pumpAndSettle();
+    expect(jsonDecode(prefs.getString(key)!), isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

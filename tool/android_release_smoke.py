@@ -74,6 +74,16 @@ class ReleaseSmoke:
             raise AssertionError("Connection fields are not ready")
         self.tap_node(fields[index])
 
+    def tap_exact(self, label):
+        deadline = time.monotonic() + 35
+        while time.monotonic() < deadline:
+            for node in self.read_screen():
+                if self.label(node).strip() == label and node.get("enabled") == "true":
+                    self.tap_node(node)
+                    return
+            time.sleep(1)
+        raise AssertionError(f"No enabled exact button: {label!r}")
+
     def set_goal_field(self, index, value):
         fields = [n for n in self.read_screen() if n.get("class") == "android.widget.EditText"]
         if len(fields) != 4 or fields[index].get("enabled") != "true":
@@ -140,6 +150,20 @@ class ReleaseSmoke:
             self.tap("Профиль")
             self.wait_for("2400 ккал", "160 г", "70 г", "35 г")
             self.capture("nutrition-goals-relaunch")
+            # Exercise the controller -> diary adapter -> JNI preferences path.
+            # The disposable CI AVD starts with no diary; no data is cleared.
+            self.tap("Питание")
+            nodes = self.read_screen()
+            if not any("157 ккал" in self.label(node) for node in nodes):
+                self.tap(ADD_FOOD)
+                self.tap("Яйцо")
+                self.wait_for("Выбрано: Яйцо")
+                self.tap_exact("Добавить")
+            self.wait_for("157 ккал")
+            self.launch()
+            self.tap("Питание")
+            self.wait_for("157 ккал", "Яйцо")
+            self.capture("manual-diary-relaunch")
             self.tap(CAMERA)
             self.tap(CONNECT)
             self.wait_for(SAVE_CONNECTION)
@@ -162,7 +186,7 @@ class ReleaseSmoke:
             nodes = self.read_screen()
             if any("https://fitlife-smoke.example.com" in self.label(n) for n in nodes):
                 raise AssertionError("Secure connection was not removed")
-            print("PASS: release startup, native preferences, relaunch, update, nutrition goal snapshot, encrypted connection save/read/delete")
+            print("PASS: release startup, native preferences, relaunch, update, nutrition goal snapshot, manual diary, encrypted connection save/read/delete")
         except Exception:
             try:
                 self.capture("failure")
