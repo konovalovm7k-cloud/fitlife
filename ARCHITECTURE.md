@@ -11,9 +11,28 @@ keys are retained so installed users keep their diary, foods and favourites.
 nutrition summary, companion drawing and validated input dialogs.
 `lib/data/repositories/diary_preferences.dart` recovers valid records from
 partially damaged JSON and preserves the originals under recovery keys.
+`preferences_queue.dart` orders all diary and settings read/modify/write
+operations in the app isolate, reloads preferences at entry and after failure,
+and rejects native writes returning false. `settings_repository.dart` owns
+startup migration, favorites, recent foods, custom foods, water and weight.
+Related nutrition goals use a single versioned `nutrition_goals_v1` snapshot;
+legacy goal keys are migrated once and retained unchanged. Snapshot reads take
+precedence thereafter. Damaged snapshots are backed up before using defaults;
+each distinct damaged source gets a separate recovery key. Legacy non-finite
+numbers are preserved as explicit diagnostic values in JSON recovery data.
+Water migration writes today's value before its completion marker and is safe
+to retry if either write fails. It never moves an undated legacy value to a
+historical selected date. This queue is not a database transaction across
+multiple keys or processes and does not provide power-loss guarantees.
 Diary and hydration keys include the selected date. The catalogue receives
 the same entries and writes additions through a callback to the shell.
 It opens as a Navigator route with normal Android back behaviour.
+
+`ValueEditorDialog.onSave` keeps goal, custom food and weight drafts open until
+the repository confirms persistence. It disables duplicate submit/cancel and
+system back during a save. Failed saves retain editable drafts. Favorites show
+the confirmed state and a recoverable error. Recent-food failures report that
+the diary meal was saved, without asking the user to submit it again.
 
 `lib/core/models/nutrition_profile.dart` and `lib/core/nutrition/` implement
 portion scaling, daily aggregation, source-linked nutrient data, reference

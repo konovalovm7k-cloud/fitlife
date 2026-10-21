@@ -74,6 +74,16 @@ class ReleaseSmoke:
             raise AssertionError("Connection fields are not ready")
         self.tap_node(fields[index])
 
+    def set_goal_field(self, index, value):
+        fields = [n for n in self.read_screen() if n.get("class") == "android.widget.EditText"]
+        if len(fields) != 4 or fields[index].get("enabled") != "true":
+            raise AssertionError("Goal fields are not ready")
+        self.tap_node(fields[index])
+        self.adb("shell", "input", "keyevent", "123")  # Move to end.
+        self.adb("shell", "input", "keyevent", *(["67"] * 12))
+        self.adb("shell", "input", "text", value)
+        self.adb("shell", "input", "keyevent", "111")  # Hide keyboard.
+
     def tap_node(self, node):
         bounds = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
         if len(bounds) != 4:
@@ -119,6 +129,17 @@ class ReleaseSmoke:
             self.launch()
             self.wait_for(SAVED_WATER)
             self.capture("update-relaunch")
+            self.tap("Профиль")
+            self.tap("Настроить цели")
+            self.wait_for("Цели питания", "Сохранить")
+            for index, value in enumerate(("2400", "160", "70", "35")):
+                self.set_goal_field(index, value)
+            self.tap("Сохранить")
+            self.wait_for("2400 ккал", "160 г", "70 г", "35 г")
+            self.launch()
+            self.tap("Профиль")
+            self.wait_for("2400 ккал", "160 г", "70 г", "35 г")
+            self.capture("nutrition-goals-relaunch")
             self.tap(CAMERA)
             self.tap(CONNECT)
             self.wait_for(SAVE_CONNECTION)
@@ -141,7 +162,7 @@ class ReleaseSmoke:
             nodes = self.read_screen()
             if any("https://fitlife-smoke.example.com" in self.label(n) for n in nodes):
                 raise AssertionError("Secure connection was not removed")
-            print("PASS: release startup, native preferences, relaunch, update, encrypted connection save/read/delete")
+            print("PASS: release startup, native preferences, relaunch, update, nutrition goal snapshot, encrypted connection save/read/delete")
         except Exception:
             try:
                 self.capture("failure")
