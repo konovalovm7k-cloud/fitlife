@@ -2,15 +2,37 @@
 
 ## Active application
 
-`lib/main.dart` is the production entry point. It creates a single MaterialApp.
-`lib/modern_app.dart` contains the active five-tab application and persistence
-orchestration. Food/diary models now live in `lib/core/models/diary_item.dart`,
+`lib/main.dart` is the production entry point. `FitLifeAppFrame` owns the single
+MaterialApp configuration (theme, Russian locale and delegates). The retained
+`ModernFitLifeApp` compatibility root delegates to the same frame.
+`lib/modern_app.dart` contains the active five-tab UI, navigation and dialogs.
+It reads a `FitLifeState` snapshot and forwards actions to `FitLifeController`;
+it does not access preference keys or perform persisted mutations.
+Food/diary models live in `lib/core/models/diary_item.dart`,
 re-exported by the shell for compatibility. Existing SharedPreferences
 keys are retained so installed users keep their diary, foods and favourites.
 `lib/app/fitlife_theme.dart` and `lib/app/widgets/` contain the shared theme,
 nutrition summary, companion drawing and validated input dialogs.
 `lib/data/repositories/diary_preferences.dart` recovers valid records from
 partially damaged JSON and preserves the originals under recovery keys.
+`lib/app/bootstrap.dart` composes the controller with `LocalFitLifeRepository`.
+The `FitLifeRepository` interface uses dates and domain models; its local adapter
+owns preference-key mapping and bridges the existing diary, settings and photo
+repositories. The controller accepts a repository and clock for deterministic
+tests. Snapshots defensively copy their lists and expose read-only views; totals
+are computed from the same diary snapshot without intermediate rounding.
+
+Loading has explicit loading/ready/failed states and a finite timeout. Attempt
+tokens discard late results after date changes, retry or disposal. A completed
+write increments the data revision; an older concurrent load re-reads instead
+of replacing confirmed state, including when that old load fails. Each save
+keeps its captured target date; completing an old-day save does not overwrite
+the currently displayed day. In-flight persistence may finish after disposal,
+but cannot publish state or notify disposed listeners. Resume follows midnight
+only when the user was viewing today, preserving a selected historical date.
+The home screen disposes its own controller and only detaches from a borrowed
+controller. Existing preferences-loader injection remains supported through
+bootstrap for compatibility; replacing it invalidates the old controller.
 `preferences_queue.dart` orders all diary and settings read/modify/write
 operations in the app isolate, reloads preferences at entry and after failure,
 and rejects native writes returning false. `settings_repository.dart` owns
@@ -25,14 +47,16 @@ to retry if either write fails. It never moves an undated legacy value to a
 historical selected date. This queue is not a database transaction across
 multiple keys or processes and does not provide power-loss guarantees.
 Diary and hydration keys include the selected date. The catalogue receives
-the same entries and writes additions through a callback to the shell.
+the same entries and writes additions through a callback to the controller.
 It opens as a Navigator route with normal Android back behaviour.
 
-`ValueEditorDialog.onSave` keeps goal, custom food and weight drafts open until
+`ValueEditorDialog.onSave` keeps portion, goal, custom food and weight drafts open until
 the repository confirms persistence. It disables duplicate submit/cancel and
 system back during a save. Failed saves retain editable drafts. Favorites show
 the confirmed state and a recoverable error. Recent-food failures report that
-the diary meal was saved, without asking the user to submit it again.
+the diary meal was saved, without asking the user to submit it again. A failed
+portion edit or deletion retains the dialog for retry. Editing a deleted entry
+fails explicitly rather than resurrecting it.
 
 `lib/core/models/nutrition_profile.dart` and `lib/core/nutrition/` implement
 portion scaling, daily aggregation, source-linked nutrient data, reference
