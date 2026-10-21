@@ -34,6 +34,7 @@ class ValueEditorDialog extends StatefulWidget {
     this.validate,
     this.saveLabel = 'Сохранить',
     this.onSave,
+    this.summaryBuilder,
   });
 
   final String title;
@@ -43,6 +44,7 @@ class ValueEditorDialog extends StatefulWidget {
   final String saveLabel;
   final String? Function(List<double>)? validate;
   final Future<void> Function(ValueEditResult)? onSave;
+  final String? Function(List<double>)? summaryBuilder;
 
   @override
   State<ValueEditorDialog> createState() => _ValueEditorDialogState();
@@ -68,6 +70,23 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
 
   double? _parse(String value) =>
       double.tryParse(value.trim().replaceAll(',', '.'));
+
+  String? get _summaryText {
+    if (widget.summaryBuilder == null) return null;
+    final values = <double>[];
+    for (var i = 0; i < _controllers.length; i++) {
+      final value = _parse(_controllers[i].text);
+      final spec = widget.fields[i];
+      if (value == null ||
+          !value.isFinite ||
+          value < spec.min ||
+          value > spec.max) {
+        return null;
+      }
+      values.add(value);
+    }
+    return widget.summaryBuilder!(values);
+  }
 
   void _save() {
     if (_saving) return;
@@ -141,8 +160,15 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
                 },
                 onFieldSubmitted: (_) =>
                     i == widget.fields.length - 1 ? _save() : null,
+                onChanged: widget.summaryBuilder == null
+                    ? null
+                    : (_) => setState(() => _error = null),
               ),
               if (i < widget.fields.length - 1) const SizedBox(height: 12),
+            ],
+            if (_summaryText case final summary?) ...[
+              const SizedBox(height: 12),
+              Text(summary),
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
