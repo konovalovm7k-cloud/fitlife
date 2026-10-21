@@ -57,17 +57,39 @@ class DiaryPreferences {
   }
 
   Future<void> _preserve(String key, Object raw) async {
-    if (preferences.containsKey('recovery_$key')) return;
+    Object? recoverable(Object? value) {
+      if (value is num && !value.isFinite) {
+        return {'invalidNumber': value.toString()};
+      }
+      if (value is List) return value.map(recoverable).toList();
+      if (value is Map) {
+        return value.map(
+          (key, item) => MapEntry(key.toString(), recoverable(item)),
+        );
+      }
+      return value;
+    }
+
+    final encoded = raw is String ? raw : jsonEncode(recoverable(raw));
+    final base = 'recovery_$key';
+    var backup = base;
+    var index = 1;
+    while (preferences.containsKey(backup)) {
+      if (preferences.get(backup) == encoded) return;
+      backup = '${base}_${index++}';
+    }
     try {
-      final saved = await preferences.setString(
-        'recovery_$key',
-        raw is String ? raw : jsonEncode(raw),
-      );
+      final saved = await preferences.setString(backup, encoded);
       if (!saved) throw StateError('Could not preserve damaged $key');
     } catch (_) {
       // Drop the optimistic cache entry so retry actually writes the backup.
       await preferences.reload();
       rethrow;
     }
+  }
+
+  Future<void> preserveValue(String key, Object raw) async {
+    recoveredData = true;
+    await _preserve(key, raw);
   }
 }
