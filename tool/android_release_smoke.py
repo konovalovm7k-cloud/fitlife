@@ -144,11 +144,21 @@ class ReleaseSmoke:
             self.wait_for("Цели питания", "Сохранить")
             for index, value in enumerate(("2400", "160", "70", "35")):
                 self.set_goal_field(index, value)
+            self.wait_for("Углеводы: 282,5 г.")
             self.tap("Сохранить")
-            self.wait_for("2400 ккал", "160 г", "70 г", "35 г")
+            self.wait_for("2400 ккал", "160 г", "70 г", "282,5 г", "35 г")
             self.launch()
             self.tap("Профиль")
-            self.wait_for("2400 ккал", "160 г", "70 г", "35 г")
+            self.wait_for("2400 ккал", "160 г", "70 г", "282,5 г", "35 г")
+            self.tap("Настроить цели")
+            for index, value in enumerate(("2400.5", "160.25", "70.5", "35.25")):
+                self.set_goal_field(index, value)
+            self.wait_for("Углеводы: 281,25 г.")
+            self.tap("Сохранить")
+            self.wait_for("2400,5 ккал", "160,25 г", "70,5 г", "281,25 г", "35,25 г")
+            self.launch()
+            self.tap("Профиль")
+            self.wait_for("2400,5 ккал", "160,25 г", "70,5 г", "281,25 г", "35,25 г")
             self.capture("nutrition-goals-relaunch")
             # Exercise the controller -> diary adapter -> JNI preferences path.
             # The disposable CI AVD starts with no diary; no data is cleared.
@@ -186,7 +196,7 @@ class ReleaseSmoke:
             nodes = self.read_screen()
             if any("https://fitlife-smoke.example.com" in self.label(n) for n in nodes):
                 raise AssertionError("Secure connection was not removed")
-            print("PASS: release startup, native preferences, relaunch, update, nutrition goal snapshot, manual diary, encrypted connection save/read/delete")
+            print("PASS: release startup, native preferences, relaunch, update, fractional nutrition goals and derived carbs, manual diary, encrypted connection save/read/delete")
         except Exception:
             try:
                 self.capture("failure")
