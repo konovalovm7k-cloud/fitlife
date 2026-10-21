@@ -1,530 +1,123 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 
 import 'app/fitlife_theme.dart';
+import 'app/bootstrap.dart';
+import 'app/fitlife_app_frame.dart';
+import 'app/state/fitlife_controller.dart';
+import 'app/state/fitlife_state.dart';
 import 'app/widgets/day_nutrition_summary.dart';
 import 'app/widgets/companion_avatar.dart';
 import 'app/widgets/value_editor.dart';
 import 'core/models/diary_item.dart';
 import 'core/models/nutrition_goal_settings.dart';
 import 'core/nutrition/nutrition_catalog_page.dart';
-import 'core/nutrition/nutrition_database.dart';
-import 'core/nutrition/nutrition_day.dart';
-import 'data/repositories/diary_repository.dart';
-import 'data/repositories/settings_repository.dart';
-import 'features/photo_analysis/photo_diary.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
 import 'features/photo_analysis/photo_settings_page.dart';
 
 export 'core/models/diary_item.dart';
+export 'data/built_in_foods.dart';
 
 class ModernFitLifeApp extends StatelessWidget {
   const ModernFitLifeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'FitLife',
-      locale: const Locale('ru'),
-      supportedLocales: const [Locale('ru')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: fitLifeTheme(),
-      home: const FitLifeHome(),
-    );
+    return const FitLifeAppFrame(home: FitLifeHome());
   }
 }
 
-const builtInFoods = <FoodItem>[
-  FoodItem(
-    id: 'egg',
-    name: 'Яйцо',
-    kcal: 157,
-    protein: 12.7,
-    fat: 10.9,
-    carbs: 0.7,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'chicken',
-    name: 'Куриная грудка',
-    kcal: 120,
-    protein: 22.5,
-    fat: 2.6,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'turkey',
-    name: 'Индейка',
-    kcal: 114,
-    protein: 23.7,
-    fat: 1.5,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'turkey_ham',
-    name: 'Ветчина из индейки',
-    kcal: 84,
-    protein: 18,
-    fat: 2,
-    carbs: 2,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'beef',
-    name: 'Говядина постная',
-    kcal: 158,
-    protein: 26,
-    fat: 6,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'salmon',
-    name: 'Лосось',
-    kcal: 208,
-    protein: 20,
-    fat: 13,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'tuna',
-    name: 'Тунец',
-    kcal: 116,
-    protein: 26,
-    fat: 0.8,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'cottage',
-    name: 'Творог 5%',
-    kcal: 121,
-    protein: 17,
-    fat: 5,
-    carbs: 1.8,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'yogurt',
-    name: 'Греческий йогурт',
-    kcal: 73,
-    protein: 9,
-    fat: 2.5,
-    carbs: 3.8,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'skyr',
-    name: 'Skyr',
-    kcal: 35,
-    protein: 6,
-    fat: 0,
-    carbs: 3,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'oats',
-    name: 'Овсянка',
-    kcal: 366,
-    protein: 12.3,
-    fat: 6.1,
-    carbs: 59.5,
-    fiber: 8.3,
-  ),
-  FoodItem(
-    id: 'buckwheat',
-    name: 'Гречка',
-    kcal: 343,
-    protein: 13.6,
-    fat: 3.4,
-    carbs: 71.5,
-    fiber: 10,
-  ),
-  FoodItem(
-    id: 'rice',
-    name: 'Рис',
-    kcal: 344,
-    protein: 7,
-    fat: 0.7,
-    carbs: 78,
-    fiber: 2.4,
-  ),
-  FoodItem(
-    id: 'couscous',
-    name: 'Кускус',
-    kcal: 376,
-    protein: 12.8,
-    fat: 0.6,
-    carbs: 77.4,
-    fiber: 5,
-  ),
-  FoodItem(
-    id: 'pasta',
-    name: 'Макароны',
-    kcal: 350,
-    protein: 12,
-    fat: 1.5,
-    carbs: 70,
-    fiber: 3,
-  ),
-  FoodItem(
-    id: 'potato',
-    name: 'Картофель',
-    kcal: 82,
-    protein: 2,
-    fat: 0.4,
-    carbs: 17,
-    fiber: 1.8,
-  ),
-  FoodItem(
-    id: 'bread',
-    name: 'Хлеб цельнозерновой',
-    kcal: 247,
-    protein: 13,
-    fat: 4.2,
-    carbs: 41,
-    fiber: 7,
-  ),
-  FoodItem(
-    id: 'pepper',
-    name: 'Перец',
-    kcal: 31,
-    protein: 1,
-    fat: 0.3,
-    carbs: 6,
-    fiber: 2.1,
-  ),
-  FoodItem(
-    id: 'iceberg',
-    name: 'Айсберг',
-    kcal: 14,
-    protein: 0.9,
-    fat: 0.1,
-    carbs: 3,
-    fiber: 1.2,
-  ),
-  FoodItem(
-    id: 'tomato',
-    name: 'Помидор',
-    kcal: 18,
-    protein: 0.9,
-    fat: 0.2,
-    carbs: 3.9,
-    fiber: 1.2,
-  ),
-  FoodItem(
-    id: 'cucumber',
-    name: 'Огурец',
-    kcal: 15,
-    protein: 0.7,
-    fat: 0.1,
-    carbs: 3.6,
-    fiber: 0.5,
-  ),
-  FoodItem(
-    id: 'broccoli',
-    name: 'Брокколи',
-    kcal: 34,
-    protein: 2.8,
-    fat: 0.4,
-    carbs: 6.6,
-    fiber: 2.6,
-  ),
-  FoodItem(
-    id: 'cauliflower',
-    name: 'Цветная капуста',
-    kcal: 25,
-    protein: 1.9,
-    fat: 0.3,
-    carbs: 5,
-    fiber: 2,
-  ),
-  FoodItem(
-    id: 'carrot',
-    name: 'Морковь',
-    kcal: 41,
-    protein: 0.9,
-    fat: 0.2,
-    carbs: 9.6,
-    fiber: 2.8,
-  ),
-  FoodItem(
-    id: 'mushroom',
-    name: 'Шампиньоны',
-    kcal: 22,
-    protein: 3.1,
-    fat: 0.3,
-    carbs: 3.3,
-    fiber: 1,
-  ),
-  FoodItem(
-    id: 'apple',
-    name: 'Яблоко',
-    kcal: 52,
-    protein: 0.3,
-    fat: 0.2,
-    carbs: 13.8,
-    fiber: 2.4,
-  ),
-  FoodItem(
-    id: 'banana',
-    name: 'Банан',
-    kcal: 89,
-    protein: 1.1,
-    fat: 0.3,
-    carbs: 22.8,
-    fiber: 2.6,
-  ),
-  FoodItem(
-    id: 'orange',
-    name: 'Апельсин',
-    kcal: 47,
-    protein: 0.9,
-    fat: 0.1,
-    carbs: 11.8,
-    fiber: 2.4,
-  ),
-  FoodItem(
-    id: 'peach',
-    name: 'Персик',
-    kcal: 39,
-    protein: 0.9,
-    fat: 0.3,
-    carbs: 9.5,
-    fiber: 1.5,
-  ),
-  FoodItem(
-    id: 'blackberry',
-    name: 'Ежевика',
-    kcal: 43,
-    protein: 1.4,
-    fat: 0.5,
-    carbs: 9.6,
-    fiber: 5.3,
-  ),
-  FoodItem(
-    id: 'blueberry',
-    name: 'Черника',
-    kcal: 57,
-    protein: 0.7,
-    fat: 0.3,
-    carbs: 14.5,
-    fiber: 2.4,
-  ),
-  FoodItem(
-    id: 'avocado',
-    name: 'Авокадо',
-    kcal: 160,
-    protein: 2,
-    fat: 14.7,
-    carbs: 8.5,
-    fiber: 6.7,
-  ),
-  FoodItem(
-    id: 'almonds',
-    name: 'Миндаль',
-    kcal: 579,
-    protein: 21.2,
-    fat: 49.9,
-    carbs: 21.6,
-    fiber: 12.5,
-  ),
-  FoodItem(
-    id: 'walnut',
-    name: 'Грецкий орех',
-    kcal: 654,
-    protein: 15.2,
-    fat: 65.2,
-    carbs: 13.7,
-    fiber: 6.7,
-  ),
-  FoodItem(
-    id: 'oil',
-    name: 'Оливковое масло',
-    kcal: 884,
-    protein: 0,
-    fat: 100,
-    carbs: 0,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'sour_cream',
-    name: 'Сметана 25%',
-    kcal: 248,
-    protein: 2.6,
-    fat: 25,
-    carbs: 3.2,
-    fiber: 0,
-  ),
-  FoodItem(
-    id: 'ketchup',
-    name: 'Кетчуп',
-    kcal: 110,
-    protein: 1.2,
-    fat: 0.2,
-    carbs: 25,
-    fiber: 0.7,
-  ),
-];
-
 class FitLifeHome extends StatefulWidget {
-  const FitLifeHome({super.key, this.preferencesLoader});
+  const FitLifeHome({super.key, this.preferencesLoader, this.controller})
+    : assert(preferencesLoader == null || controller == null);
 
-  final Future<SharedPreferences> Function()? preferencesLoader;
+  // Retained for existing embedders and startup tests; storage stays in bootstrap.
+  final PreferencesLoader? preferencesLoader;
+  final FitLifeController? controller;
 
   @override
   State<FitLifeHome> createState() => _FitLifeHomeState();
 }
 
 class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
-  double kcalTarget = 1900;
-  double proteinTarget = 180;
-  double fatTarget = 65;
-  double fiberTarget = 30;
-  double get carbsTarget =>
-      ((kcalTarget - proteinTarget * 4 - fatTarget * 9) / 4)
-          .clamp(0, kcalTarget)
-          .toDouble();
-
+  late FitLifeController _controller;
+  late bool _ownsController;
   int tab = 0;
-  double water = 0;
-  double weight = 104.2;
-  bool loading = true;
-  bool loadFailed = false;
-  int _loadAttempt = 0;
-  DateTime day = DateUtils.dateOnly(DateTime.now());
-  DateTime _lastToday = DateUtils.dateOnly(DateTime.now());
-  bool recoveredData = false;
 
-  List<DiaryItem> diary = [];
-  List<FoodItem> customFoods = [];
-  List<String> favorites = [];
-  List<String> recent = [];
+  FitLifeState get data => _controller.state;
+  double get kcalTarget => data.goals.calories;
+  double get proteinTarget => data.goals.protein;
+  double get fatTarget => data.goals.fat;
+  double get fiberTarget => data.goals.fiber;
+  double get carbsTarget => data.carbsTarget;
+  double get water => data.water;
+  double get weight => data.weight;
+  bool get loading => data.status == FitLifeLoadStatus.loading;
+  bool get loadFailed => data.status == FitLifeLoadStatus.failed;
+  bool get recoveredData => data.recoveredData;
+  DateTime get day => data.day;
+  List<DiaryItem> get diary => data.diary;
+  List<String> get favorites => data.favorites;
+  List<String> get recent => data.recent;
+  List<FoodItem> get foods => _controller.foods;
+  double get calories => data.total.calories;
+  double get protein => data.total.protein;
+  double get fat => data.total.fat;
+  double get carbs => data.total.carbs;
+  double get fiber => data.total.fiber;
+  double get caloriesLeft => data.caloriesLeft;
 
-  List<FoodItem> get foods => [...builtInFoods, ...customFoods];
-
-  double get calories {
-    return diary.fold(0, (sum, item) => sum + item.kcal);
+  void _refresh() {
+    if (mounted) setState(() {});
   }
 
-  double get protein {
-    return diary.fold(0, (sum, item) => sum + item.protein);
+  void _attachController() {
+    _ownsController = widget.controller == null;
+    _controller =
+        widget.controller ??
+        createFitLifeController(preferencesLoader: widget.preferencesLoader);
+    _controller.addListener(_refresh);
+    unawaited(_controller.initialize());
   }
 
-  double get fat {
-    return diary.fold(0, (sum, item) => sum + item.fat);
-  }
-
-  double get carbs {
-    return diary.fold(0, (sum, item) => sum + item.carbs);
-  }
-
-  double get fiber {
-    return diary.fold(0, (sum, item) => sum + item.fiber);
-  }
-
-  double get caloriesLeft {
-    final value = kcalTarget - calories;
-    return value.clamp(0, kcalTarget).toDouble();
-  }
-
-  String get dayKey {
-    return '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+  void _detachController() {
+    _controller.removeListener(_refresh);
+    if (_ownsController) _controller.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    _attachController();
     WidgetsBinding.instance.addObserver(this);
-    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant FitLifeHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller ||
+        widget.preferencesLoader != oldWidget.preferencesLoader) {
+      _detachController();
+      _attachController();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _detachController();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    final today = DateUtils.dateOnly(DateTime.now());
-    if (!DateUtils.isSameDay(today, _lastToday)) {
-      if (DateUtils.isSameDay(day, _lastToday)) {
-        setState(() {
-          day = today;
-          loading = true;
-        });
-        _load();
-      }
-      _lastToday = today;
-    }
+    if (state == AppLifecycleState.resumed) unawaited(_controller.resume());
   }
 
-  Future<void> _load() async {
-    final key = dayKey;
-    final attempt = ++_loadAttempt;
-    setState(() {
-      loading = true;
-      loadFailed = false;
-    });
-    try {
-      final data = await _readSavedDay(
-        key,
-      ).timeout(const Duration(seconds: 15));
-      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
-      final goals = data.goals;
-      setState(() {
-        water = data.water;
-        weight = data.weight;
-        kcalTarget = goals.calories;
-        proteinTarget = goals.protein;
-        fatTarget = goals.fat;
-        fiberTarget = goals.fiber;
-        favorites = data.favorites;
-        recent = data.recent;
-        diary = data.diary;
-        customFoods = data.foods;
-        recoveredData = data.recoveredData;
-        loading = false;
-      });
-    } catch (error) {
-      // Do not open a writable empty diary when its real data could not be read.
-      debugPrint('FitLife storage initialization failed: ${error.runtimeType}');
-      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
-      setState(() {
-        loading = false;
-        loadFailed = true;
-      });
-    }
-  }
-
-  Future<SettingsRepository> _settings() async => SettingsRepository(
-    await (widget.preferencesLoader ?? SharedPreferences.getInstance)(),
-  );
-
-  Future<SavedSettings> _readSavedDay(String key) async {
-    final today = DateUtils.dateOnly(DateTime.now());
-    final todayKey =
-        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    return (await _settings()).load(key, todayKey: todayKey);
-  }
-
-  Future<void> _writeDiaryEntry(String key, DiaryItem entry) async {
-    final prefs =
-        await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
-    final saved = await DiaryRepository(prefs).upsert('diary_$key', entry);
-    if (mounted && key == dayKey) setState(() => diary = saved);
-  }
+  Future<void> _load() => _controller.load();
 
   @override
   Widget build(BuildContext context) {
@@ -1238,7 +831,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       'декабря',
     ];
     final date = '${day.day} ${months[day.month - 1]} ${day.year}';
-    return DateUtils.isSameDay(day, DateTime.now()) ? 'Сегодня, $date' : date;
+    return _controller.isToday ? 'Сегодня, $date' : date;
   }
 
   Future<void> _chooseDay() async {
@@ -1252,70 +845,26 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       confirmText: 'Выбрать',
     );
     if (!mounted || result == null || DateUtils.isSameDay(day, result)) return;
-    setState(() {
-      day = result;
-      loading = true;
-    });
-    await _load();
+    await _controller.selectDay(result);
   }
 
-  String _suggestedMeal() {
-    final hour = DateTime.now().hour;
-    if (hour < 11) return 'Завтрак';
-    if (hour < 16) return 'Обед';
-    if (hour < 21) return 'Ужин';
-    return 'Перекус';
-  }
+  String _suggestedMeal() => _controller.suggestedMeal;
 
   Future<void> _openCatalog() async {
-    final key = dayKey;
-    final entries = diary
-        .map(
-          (entry) => NutritionDayEntry(
-            food: NutritionFoodRecord(
-              id: entry.food.id,
-              name: entry.food.name,
-              source: '',
-              sourceUrl: '',
-              profile: entry.food.profile,
-            ),
-            grams: entry.grams,
-          ),
-        )
-        .toList();
+    final targetDay = day;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => NutritionCatalogPage(
-          initialDay: NutritionDay(entries: entries),
+          initialDay: _controller.nutritionDay,
           dayLabel: _dateLabel(),
           onAdd: (entry) async {
             if (!mounted) return;
-            final record = entry.food;
-            final p = record.profile;
-            final food = FoodItem(
-              id: 'catalog_${record.id}',
-              name: record.name,
-              kcal: p.kcal,
-              protein: p.protein,
-              fat: p.fat,
-              carbs: p.carbs,
-              fiber: p.fiber,
-              nutrition: p,
-            );
-            if (_foodById(food.id) == null) {
-              final saved = await (await _settings()).upsertFood(food);
-              if (!mounted) return;
-              setState(() => customFoods = saved);
-            }
-            await _writeDiaryEntry(
-              key,
-              DiaryItem(
-                id: DateTime.now().microsecondsSinceEpoch.toString(),
-                meal: _suggestedMeal(),
-                food: food,
-                grams: entry.grams,
-                time: TimeOfDay.now().format(context),
-              ),
+            await _controller.addCatalogFood(
+              targetDay,
+              entry.food,
+              grams: entry.grams,
+              meal: _suggestedMeal(),
+              time: TimeOfDay.fromDateTime(_controller.now).format(context),
             );
           },
         ),
@@ -1323,19 +872,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _savePhotoMeal(PhotoMeal meal) async {
-    final saved = await savePhotoMeal(
-      meal,
-      preferencesLoader: widget.preferencesLoader,
-    ).timeout(const Duration(seconds: 15));
-    if (mounted && DateUtils.isSameDay(day, meal.day)) {
-      setState(() => diary = saved);
-    }
-  }
+  Future<void> _savePhotoMeal(PhotoMeal meal) => _controller.savePhoto(meal);
 
   Future<void> _addFood({FoodItem? preselected}) async {
-    final key = dayKey;
-    final entryId = DateTime.now().microsecondsSinceEpoch.toString();
+    final targetDay = day;
+    final entryId = _controller.newId();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1345,93 +886,58 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         favorites: favorites,
         preselected: preselected,
         initialMeal: _suggestedMeal(),
-        onFavorite: (food, selected) async {
-          final saved = await (await _settings()).setFavorite(
-            food.id,
-            selected,
-          );
-          if (mounted) setState(() => favorites = saved);
-          return saved;
-        },
+        onFavorite: (food, selected) =>
+            _controller.setFavorite(food.id, selected),
         onAdd: (food, grams, meal) async {
-          await _writeDiaryEntry(
-            key,
+          final recentSaved = await _controller.addMeal(
+            targetDay,
             DiaryItem(
               id: entryId,
               meal: meal,
               food: food,
               grams: grams,
-              time: TimeOfDay.now().format(context),
+              time: TimeOfDay.fromDateTime(_controller.now).format(context),
             ),
           );
-          if (!mounted) return;
-          try {
-            final saved = await (await _settings()).rememberFood(food.id);
-            if (mounted) setState(() => recent = saved);
-          } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Еда сохранена, но список последних продуктов обновить не удалось.',
-                ),
+          if (recentSaved || !mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Еда сохранена, но список последних продуктов обновить не удалось.',
               ),
-            );
-          }
+            ),
+          );
         },
       ),
     );
   }
 
   Future<void> _editDiaryItem(DiaryItem item) async {
-    final key = dayKey;
-    final result = await showDialog<ValueEditResult>(
+    final targetDay = day;
+    await showDialog<ValueEditResult>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => ValueEditorDialog(
         title: item.food.name,
         allowDelete: true,
         fields: [NumberFieldSpec('Граммы', item.grams, min: 0.1)],
+        onSave: (result) => _controller.editEntry(
+          targetDay,
+          DiaryItem(
+            id: item.id,
+            meal: item.meal,
+            food: item.food,
+            grams: result.deleted ? item.grams : result.values.first,
+            time: item.time,
+          ),
+          delete: result.deleted,
+        ),
       ),
     );
-    if (!mounted || result == null) return;
-    try {
-      final prefs =
-          await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
-      final saved = await DiaryRepository(prefs).update('diary_$key', (
-        current,
-      ) {
-        if (result.deleted) {
-          return current.where((entry) => entry.id != item.id).toList();
-        }
-        return current
-            .map(
-              (entry) => entry.id != item.id
-                  ? entry
-                  : DiaryItem(
-                      id: item.id,
-                      meal: item.meal,
-                      food: item.food,
-                      grams: result.values.first,
-                      time: item.time,
-                    ),
-            )
-            .toList();
-      });
-      if (mounted && key == dayKey) setState(() => diary = saved);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Не удалось сохранить изменения. Запись сохранена без изменений.',
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _addCustomFood() async {
-    final id = 'custom_${DateTime.now().microsecondsSinceEpoch}';
+    final id = _controller.newId(prefix: 'custom_');
     final result = await showDialog<ValueEditResult>(
       context: context,
       barrierDismissible: false,
@@ -1447,7 +953,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         ],
         onSave: (result) async {
           final v = result.values;
-          final saved = await (await _settings()).upsertFood(
+          await _controller.saveFood(
             FoodItem(
               id: id,
               name: result.name!,
@@ -1458,7 +964,6 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               fiber: v[4],
             ),
           );
-          if (mounted) setState(() => customFoods = saved);
         },
       ),
     );
@@ -1485,7 +990,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
             : null,
         onSave: (result) async {
           final v = result.values;
-          await (await _settings()).saveGoals(
+          await _controller.saveGoals(
             NutritionGoalSettings(
               calories: v[0],
               protein: v[1],
@@ -1493,23 +998,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               fiber: v[3],
             ),
           );
-          if (!mounted) return;
-          setState(() {
-            kcalTarget = v[0];
-            proteinTarget = v[1];
-            fatTarget = v[2];
-            fiberTarget = v[3];
-          });
         },
       ),
     );
   }
 
   Future<void> _addWater() async {
-    final key = dayKey;
+    final targetDay = day;
     try {
-      final next = await (await _settings()).addWater(key, 0.25);
-      if (mounted && key == dayKey) setState(() => water = next);
+      await _controller.addWater(targetDay);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1529,8 +1026,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         fields: [NumberFieldSpec('Вес, кг', weight, min: 30, max: 300)],
         onSave: (result) async {
           final value = result.values.first;
-          await (await _settings()).saveWeight(value);
-          if (mounted) setState(() => weight = value);
+          await _controller.saveWeight(value);
         },
       ),
     );
