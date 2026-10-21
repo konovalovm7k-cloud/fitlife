@@ -33,6 +33,7 @@ class ValueEditorDialog extends StatefulWidget {
     this.allowDelete = false,
     this.validate,
     this.saveLabel = 'Сохранить',
+    this.onSave,
   });
 
   final String title;
@@ -41,6 +42,7 @@ class ValueEditorDialog extends StatefulWidget {
   final bool allowDelete;
   final String saveLabel;
   final String? Function(List<double>)? validate;
+  final Future<void> Function(ValueEditResult)? onSave;
 
   @override
   State<ValueEditorDialog> createState() => _ValueEditorDialogState();
@@ -53,6 +55,7 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
       .toList();
   late final _name = TextEditingController(text: widget.initialName);
   String? _error;
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -67,82 +70,107 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
       double.tryParse(value.trim().replaceAll(',', '.'));
 
   void _save() {
+    if (_saving) return;
     if (!_form.currentState!.validate()) return;
     final values = _controllers.map((field) => _parse(field.text)!).toList();
     final error = widget.validate?.call(values);
     setState(() => _error = error);
     if (error != null) return;
-    Navigator.pop(
-      context,
-      ValueEditResult(values: values, name: _name.text.trim()),
-    );
+    _submit(ValueEditResult(values: values, name: _name.text.trim()));
+  }
+
+  Future<void> _submit(ValueEditResult result) async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave?.call(result);
+      if (mounted) Navigator.pop(context, result);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'Не удалось сохранить. Проверь свободное место и повтори.';
+      });
+    }
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    scrollable: true,
-    content: Form(
-      key: _form,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.initialName != null) ...[
-            TextFormField(
-              controller: _name,
-              maxLength: 80,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Название'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Укажи название'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-          ],
-          for (var i = 0; i < widget.fields.length; i++) ...[
-            TextFormField(
-              controller: _controllers[i],
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_saving,
+    child: AlertDialog(
+      title: Text(widget.title),
+      scrollable: true,
+      content: Form(
+        key: _form,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.initialName != null) ...[
+              TextFormField(
+                controller: _name,
+                readOnly: _saving,
+                maxLength: 80,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Название'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Укажи название'
+                    : null,
               ),
-              decoration: InputDecoration(labelText: widget.fields[i].label),
-              validator: (text) {
-                final value = _parse(text ?? '');
-                final spec = widget.fields[i];
-                return value == null ||
-                        !value.isFinite ||
-                        value < spec.min ||
-                        value > spec.max
-                    ? 'Введи число от ${spec.min} до ${spec.max}'
-                    : null;
-              },
-              onFieldSubmitted: (_) =>
-                  i == widget.fields.length - 1 ? _save() : null,
-            ),
-            if (i < widget.fields.length - 1) const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
+            for (var i = 0; i < widget.fields.length; i++) ...[
+              TextFormField(
+                controller: _controllers[i],
+                readOnly: _saving,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(labelText: widget.fields[i].label),
+                validator: (text) {
+                  final value = _parse(text ?? '');
+                  final spec = widget.fields[i];
+                  return value == null ||
+                          !value.isFinite ||
+                          value < spec.min ||
+                          value > spec.max
+                      ? 'Введи число от ${spec.min} до ${spec.max}'
+                      : null;
+                },
+                onFieldSubmitted: (_) =>
+                    i == widget.fields.length - 1 ? _save() : null,
+              ),
+              if (i < widget.fields.length - 1) const SizedBox(height: 12),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
           ],
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-        ],
-      ),
-    ),
-    actions: [
-      if (widget.allowDelete)
-        TextButton(
-          onPressed: () =>
-              Navigator.pop(context, const ValueEditResult(deleted: true)),
-          child: const Text('Удалить'),
         ),
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Отмена'),
       ),
-      FilledButton(onPressed: _save, child: Text(widget.saveLabel)),
-    ],
+      actions: [
+        if (widget.allowDelete)
+          TextButton(
+            onPressed: _saving
+                ? null
+                : () => _submit(const ValueEditResult(deleted: true)),
+            child: const Text('Удалить'),
+          ),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Сохраняем...' : widget.saveLabel),
+        ),
+      ],
+    ),
   );
 }

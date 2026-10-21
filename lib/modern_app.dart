@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -11,11 +10,12 @@ import 'app/widgets/day_nutrition_summary.dart';
 import 'app/widgets/companion_avatar.dart';
 import 'app/widgets/value_editor.dart';
 import 'core/models/diary_item.dart';
+import 'core/models/nutrition_goal_settings.dart';
 import 'core/nutrition/nutrition_catalog_page.dart';
 import 'core/nutrition/nutrition_database.dart';
 import 'core/nutrition/nutrition_day.dart';
-import 'data/repositories/diary_preferences.dart';
 import 'data/repositories/diary_repository.dart';
+import 'data/repositories/settings_repository.dart';
 import 'features/photo_analysis/photo_diary.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
@@ -482,19 +482,19 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         key,
       ).timeout(const Duration(seconds: 15));
       if (!mounted || key != dayKey || attempt != _loadAttempt) return;
-      final store = data.store;
+      final goals = data.goals;
       setState(() {
-        water = store.number('water_$key', 0, allowZero: true);
-        weight = store.number('weight', 104.2);
-        kcalTarget = store.number('goal_calories', 1900);
-        proteinTarget = store.number('goal_protein', 180);
-        fatTarget = store.number('goal_fat', 65);
-        fiberTarget = store.number('goal_fiber', 30);
+        water = data.water;
+        weight = data.weight;
+        kcalTarget = goals.calories;
+        proteinTarget = goals.protein;
+        fatTarget = goals.fat;
+        fiberTarget = goals.fiber;
         favorites = data.favorites;
         recent = data.recent;
         diary = data.diary;
         customFoods = data.foods;
-        recoveredData = store.recoveredData;
+        recoveredData = data.recoveredData;
         loading = false;
       });
     } catch (error) {
@@ -508,46 +508,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     }
   }
 
-  Future<
-    ({
-      DiaryPreferences store,
-      List<DiaryItem> diary,
-      List<FoodItem> foods,
-      List<String> favorites,
-      List<String> recent,
-    })
-  >
-  _readSavedDay(String key) async {
-    final prefs =
-        await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
-    final store = DiaryPreferences(prefs);
-    final savedDiary = await store.readRecords(
-      'diary_$key',
-      DiaryItem.fromJson,
-    );
-    final savedFoods = await store.readRecords(
-      'custom_foods',
-      FoodItem.fromJson,
-    );
-    final savedFavorites = await store.readStringList('favorites');
-    final savedRecent = await store.readStringList('recent');
-    if (!prefs.containsKey('water_migrated')) {
-      if (!prefs.containsKey('water_$key')) {
-        await prefs.setDouble(
-          'water_$key',
-          store.number('water', 0, allowZero: true),
-        );
-      }
-      await prefs.setBool('water_migrated', true);
-    }
+  Future<SettingsRepository> _settings() async => SettingsRepository(
+    await (widget.preferencesLoader ?? SharedPreferences.getInstance)(),
+  );
 
-    return (
-      store: store,
-      diary: savedDiary,
-      foods: savedFoods,
-      favorites: savedFavorites,
-      recent: savedRecent,
-    );
+  Future<SavedSettings> _readSavedDay(String key) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final todayKey =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    return (await _settings()).load(key, todayKey: todayKey);
   }
 
   Future<void> _writeDiaryEntry(String key, DiaryItem entry) async {
@@ -555,25 +524,6 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
     final saved = await DiaryRepository(prefs).upsert('diary_$key', entry);
     if (mounted && key == dayKey) setState(() => diary = saved);
-  }
-
-  Future<void> _saveLists() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorites', favorites);
-    await prefs.setStringList('recent', recent);
-  }
-
-  Future<void> _saveFoods() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'custom_foods',
-      jsonEncode(customFoods.map((item) => item.toJson()).toList()),
-    );
-  }
-
-  Future<void> _setNumber(String key, double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(key, value);
   }
 
   @override
@@ -1353,21 +1303,9 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               nutrition: p,
             );
             if (_foodById(food.id) == null) {
-              final prefs =
-                  await (widget.preferencesLoader ??
-                      SharedPreferences.getInstance)();
-              final saved = await prefs.setString(
-                'custom_foods',
-                jsonEncode(
-                  [...customFoods, food].map((item) => item.toJson()).toList(),
-                ),
-              );
-              if (!saved) {
-                await prefs.reload();
-                throw StateError('Could not save catalogue food');
-              }
+              final saved = await (await _settings()).upsertFood(food);
               if (!mounted) return;
-              setState(() => customFoods.add(food));
+              setState(() => customFoods = saved);
             }
             await _writeDiaryEntry(
               key,
@@ -1407,15 +1345,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         favorites: favorites,
         preselected: preselected,
         initialMeal: _suggestedMeal(),
-        onFavorite: (food) {
-          setState(() {
-            if (favorites.contains(food.id)) {
-              favorites.remove(food.id);
-            } else {
-              favorites.add(food.id);
-            }
-          });
-          _saveLists();
+        onFavorite: (food, selected) async {
+          final saved = await (await _settings()).setFavorite(
+            food.id,
+            selected,
+          );
+          if (mounted) setState(() => favorites = saved);
+          return saved;
         },
         onAdd: (food, grams, meal) async {
           await _writeDiaryEntry(
@@ -1429,13 +1365,19 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
             ),
           );
           if (!mounted) return;
-          setState(() {
-            recent = [
-              food.id,
-              ...recent.where((id) => id != food.id),
-            ].take(10).toList();
-          });
-          await _saveLists();
+          try {
+            final saved = await (await _settings()).rememberFood(food.id);
+            if (mounted) setState(() => recent = saved);
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Еда сохранена, но список последних продуктов обновить не удалось.',
+                ),
+              ),
+            );
+          }
         },
       ),
     );
@@ -1489,45 +1431,47 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _addCustomFood() async {
+    final id = 'custom_${DateTime.now().microsecondsSinceEpoch}';
     final result = await showDialog<ValueEditResult>(
       context: context,
-      builder: (_) => const ValueEditorDialog(
+      barrierDismissible: false,
+      builder: (_) => ValueEditorDialog(
         title: 'Свой продукт',
         initialName: '',
-        fields: [
+        fields: const [
           NumberFieldSpec('Ккал / 100 г', 0),
           NumberFieldSpec('Белок / 100 г', 0, max: 100),
           NumberFieldSpec('Жиры / 100 г', 0, max: 100),
           NumberFieldSpec('Углеводы / 100 г', 0, max: 100),
           NumberFieldSpec('Клетчатка / 100 г', 0, max: 100),
         ],
+        onSave: (result) async {
+          final v = result.values;
+          final saved = await (await _settings()).upsertFood(
+            FoodItem(
+              id: id,
+              name: result.name!,
+              kcal: v[0],
+              protein: v[1],
+              fat: v[2],
+              carbs: v[3],
+              fiber: v[4],
+            ),
+          );
+          if (mounted) setState(() => customFoods = saved);
+        },
       ),
     );
     if (!mounted || result == null) return;
-    final v = result.values;
-    setState(
-      () => customFoods.add(
-        FoodItem(
-          id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
-          name: result.name!,
-          kcal: v[0],
-          protein: v[1],
-          fat: v[2],
-          carbs: v[3],
-          fiber: v[4],
-        ),
-      ),
-    );
-    await _saveFoods();
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Продукт сохранён и доступен в поиске')),
     );
   }
 
   Future<void> _editGoals() async {
-    final result = await showDialog<ValueEditResult>(
+    await showDialog<ValueEditResult>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => ValueEditorDialog(
         title: 'Цели питания',
         fields: [
@@ -1539,40 +1483,57 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         validate: (v) => v[1] * 4 + v[2] * 9 > v[0]
             ? 'Калории из белков и жиров превышают дневную цель.'
             : null,
+        onSave: (result) async {
+          final v = result.values;
+          await (await _settings()).saveGoals(
+            NutritionGoalSettings(
+              calories: v[0],
+              protein: v[1],
+              fat: v[2],
+              fiber: v[3],
+            ),
+          );
+          if (!mounted) return;
+          setState(() {
+            kcalTarget = v[0];
+            proteinTarget = v[1];
+            fatTarget = v[2];
+            fiberTarget = v[3];
+          });
+        },
       ),
     );
-    if (!mounted || result == null) return;
-    final v = result.values;
-    setState(() {
-      kcalTarget = v[0];
-      proteinTarget = v[1];
-      fatTarget = v[2];
-      fiberTarget = v[3];
-    });
-    await _setNumber('goal_calories', v[0]);
-    await _setNumber('goal_protein', v[1]);
-    await _setNumber('goal_fat', v[2]);
-    await _setNumber('goal_fiber', v[3]);
   }
 
   Future<void> _addWater() async {
-    final next = water + 0.25;
-    setState(() => water = next);
-    await _setNumber('water_$dayKey', next);
+    final key = dayKey;
+    try {
+      final next = await (await _settings()).addWater(key, 0.25);
+      if (mounted && key == dayKey) setState(() => water = next);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось сохранить воду. Попробуй ещё раз.'),
+        ),
+      );
+    }
   }
 
   Future<void> _addWeight() async {
-    final result = await showDialog<ValueEditResult>(
+    await showDialog<ValueEditResult>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => ValueEditorDialog(
         title: 'Вес',
         fields: [NumberFieldSpec('Вес, кг', weight, min: 30, max: 300)],
+        onSave: (result) async {
+          final value = result.values.first;
+          await (await _settings()).saveWeight(value);
+          if (mounted) setState(() => weight = value);
+        },
       ),
     );
-    if (!mounted || result == null) return;
-    final value = result.values.first;
-    setState(() => weight = value);
-    await _setNumber('weight', value);
   }
 }
 
@@ -1590,7 +1551,7 @@ class _FoodEntrySheet extends StatefulWidget {
   final List<String> favorites;
   final FoodItem? preselected;
   final String initialMeal;
-  final ValueChanged<FoodItem> onFavorite;
+  final Future<List<String>> Function(FoodItem, bool) onFavorite;
   final Future<void> Function(FoodItem, double, String) onAdd;
 
   @override
@@ -1604,6 +1565,31 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
   String _query = '';
   String? _error;
   bool _saving = false;
+  late List<String> _favorites = [...widget.favorites];
+  bool _favoriteSaving = false;
+  String? _favoriteError;
+
+  Future<void> _toggleFavorite(FoodItem food) async {
+    if (_favoriteSaving) return;
+    final selected = !_favorites.contains(food.id);
+    setState(() {
+      _favoriteSaving = true;
+      _favoriteError = null;
+    });
+    try {
+      final saved = await widget.onFavorite(food, selected);
+      if (mounted) setState(() => _favorites = saved);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _favoriteError =
+              'Не удалось сохранить избранное. Попробуй ещё раз.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _favoriteSaving = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -1688,6 +1674,11 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
             onChanged: (value) => setState(() => _query = value),
           ),
           const SizedBox(height: 8),
+          if (_favoriteError != null)
+            Text(
+              _favoriteError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           SizedBox(
             height: (MediaQuery.sizeOf(context).height * 0.25).clamp(
               100.0,
@@ -1704,7 +1695,7 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final food = filtered[index];
-                      final favorite = widget.favorites.contains(food.id);
+                      final favorite = _favorites.contains(food.id);
                       return ListTile(
                         selected: _selected?.id == food.id,
                         selectedTileColor: mint,
@@ -1742,10 +1733,9 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
                                 : Icons.star_border_rounded,
                             color: gold,
                           ),
-                          onPressed: () {
-                            widget.onFavorite(food);
-                            setState(() {});
-                          },
+                          onPressed: _favoriteSaving || _saving
+                              ? null
+                              : () => _toggleFavorite(food),
                         ),
                         onTap: () => setState(() => _selected = food),
                       );
