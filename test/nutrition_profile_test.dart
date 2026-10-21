@@ -3,6 +3,36 @@ import 'package:fitlife/core/models/nutrition_profile.dart';
 import 'package:fitlife/core/nutrition/nutrition_database.dart';
 
 void main() {
+  test('invalid portion cannot produce negative or non-finite totals', () {
+    final profile = nutritionDatabase.first.profile;
+    for (final grams in [-1.0, double.nan, double.infinity]) {
+      expect(() => profile.portion(grams), throwsArgumentError);
+    }
+    expect(profile.portion(0).kcal, 0);
+    expect(profile.portion(0.25).kcal, closeTo(1.685, 1e-12));
+  });
+
+  test('damaged stored nutrient values are rejected before aggregation', () {
+    final json = nutritionDatabase.first.profile.toJson();
+    for (final value in [-1, double.infinity, double.nan, 'bad']) {
+      expect(
+        () => NutritionProfile.fromJson({...json, 'kcal': value}),
+        throwsFormatException,
+      );
+      expect(
+        () => NutritionProfile.fromJson({
+          ...json,
+          'vitamins': {'C': value},
+        }),
+        throwsFormatException,
+      );
+    }
+    expect(
+      NutritionProfile.fromJson(json).portion(150.5).kcal,
+      closeTo(1014.37, 1e-9),
+    );
+  });
+
   test('portion scales macros and micronutrients from 100 g', () {
     final source = nutritionDatabase.first.profile;
     final portion = source.portion(250);

@@ -5,6 +5,9 @@ import 'package:fitlife/modern_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+import 'diary_repository_test.dart' show DiaryDisk;
 
 String dateKey(DateTime day) =>
     '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
@@ -23,6 +26,82 @@ Future<void> launch(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets(
+    'manual save failure retains form; retry stores one precise portion',
+    (tester) async {
+      final disk = DiaryDisk();
+      SharedPreferencesStorePlatform.instance = disk;
+      await launch(tester);
+      await tester.tap(find.text('Добавить еду'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Яйцо'));
+      await tester.enterText(find.widgetWithText(TextField, 'Граммы'), '150,5');
+      disk.fail = true;
+      await tester.tap(find.widgetWithText(FilledButton, 'Добавить'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Не удалось сохранить. Проверь свободное место и повтори.'),
+        findsOneWidget,
+      );
+      expect(find.text('150,5'), findsOneWidget);
+      final key = 'diary_${dateKey(DateTime.now())}';
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(key), isFalse);
+      expect(tester.takeException(), isNull);
+
+      disk.fail = false;
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Граммы'),
+        '200,25',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Добавить'));
+      await tester.pumpAndSettle();
+      await prefs.reload();
+      final stored = (jsonDecode(prefs.getString(key)!) as List).single;
+      expect(stored['grams'], 200.25);
+      expect(find.widgetWithText(FilledButton, 'Добавить'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('failed edit leaves stored and displayed diary unchanged', (
+    tester,
+  ) async {
+    final disk = DiaryDisk();
+    SharedPreferencesStorePlatform.instance = disk;
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'diary_${dateKey(DateTime.now())}';
+    final raw = jsonEncode([
+      DiaryItem(
+        id: 'old',
+        meal: 'Обед',
+        food: builtInFoods.first,
+        grams: 150.5,
+        time: '12:00',
+      ).toJson(),
+    ]);
+    await prefs.setString(key, raw);
+    await launch(tester);
+    await tester.tap(find.text('Питание').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byTooltip('Изменить порцию'), 200);
+    await tester.tap(find.byTooltip('Изменить порцию'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '250');
+    disk.fail = true;
+    await tester.tap(find.text('Сохранить'));
+    await tester.pumpAndSettle();
+    expect(prefs.getString(key), raw);
+    expect(
+      find.text(
+        'Не удалось сохранить изменения. Запись сохранена без изменений.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    disk.fail = false;
+  });
 
   testWidgets(
     'invalid portions are rejected; add, edit, delete and reload persist',

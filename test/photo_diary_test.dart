@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:fitlife/features/photo_analysis/photo_diary.dart';
 import 'package:fitlife/features/photo_analysis/photo_models.dart';
 import 'package:fitlife/modern_app.dart';
+import 'package:fitlife/data/repositories/diary_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
@@ -20,6 +21,30 @@ class FailingPhotoDisk extends InMemorySharedPreferencesStore {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('photo and manual additions share the same write queue', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final manual = DiaryItem(
+      id: 'manual',
+      meal: 'Обед',
+      food: builtInFoods.first,
+      grams: 150.5,
+      time: '12:00',
+    );
+    final photo = PhotoMeal(
+      id: 'c' * 32,
+      day: DateTime(2026, 10, 20),
+      meal: 'Обед',
+      items: [PhotoFood.fromJson(sampleFood)],
+    );
+    await Future.wait([
+      savePhotoMeal(photo),
+      DiaryRepository(prefs).upsert('diary_2026-10-20', manual),
+    ]);
+    await prefs.reload();
+    final stored = jsonDecode(prefs.getString('diary_2026-10-20')!) as List;
+    expect(stored.length, 2);
+    expect(stored.map((item) => item['id']), contains('manual'));
+  });
   test(
     'confirmed photo batch preserves old entries, date and idempotent retry',
     () async {
