@@ -1,4 +1,12 @@
 class NutritionGoalSettings {
+  static const minValue = 1.0;
+  static const maxCalories = 10000.0;
+  static const maxGrams = 1000.0;
+  static const proteinEnergyFactor = 4.0;
+  static const fatEnergyFactor = 9.0;
+  static const carbEnergyFactor = 4.0;
+  // Only accommodates binary floating-point noise, in kcal.
+  static const energyTolerance = 1e-8;
   const NutritionGoalSettings({
     this.calories = 1900,
     this.protein = 180,
@@ -11,17 +19,38 @@ class NutritionGoalSettings {
   final double fat;
   final double fiber;
 
-  void validate() {
+  double get proteinFatCalories =>
+      protein * proteinEnergyFactor + fat * fatEnergyFactor;
+
+  /// Carbs consume the remaining goal energy; they are never rounded in storage.
+  double get carbs {
+    validate();
+    final remaining = calories - proteinFatCalories;
+    return remaining < 0 ? 0 : remaining / carbEnergyFactor;
+  }
+
+  double get macroCalories => proteinFatCalories + carbs * carbEnergyFactor;
+
+  String? get validationError {
     final values = [calories, protein, fat, fiber];
-    final maxima = [10000, 1000, 1000, 1000];
+    final maxima = [maxCalories, maxGrams, maxGrams, maxGrams];
+    const names = ['Калории', 'Белок', 'Жиры', 'Клетчатка'];
     for (var i = 0; i < values.length; i++) {
-      if (!values[i].isFinite || values[i] < 1 || values[i] > maxima[i]) {
-        throw const FormatException('Invalid nutrition goal');
+      if (!values[i].isFinite ||
+          values[i] < minValue ||
+          values[i] > maxima[i]) {
+        return '${names[i]}: введи число от 1 до ${maxima[i].round()}.';
       }
     }
-    if (protein * 4 + fat * 9 > calories) {
-      throw const FormatException('Macros exceed calorie goal');
+    if (proteinFatCalories - calories > energyTolerance) {
+      return 'Калории из белков и жиров превышают дневную цель.';
     }
+    return null;
+  }
+
+  void validate() {
+    final error = validationError;
+    if (error != null) throw FormatException(error);
   }
 
   Map<String, dynamic> toJson() => {

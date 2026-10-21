@@ -60,10 +60,7 @@ class FitLifeState {
   final List<String> favorites;
   final List<String> recent;
   late final DiaryTotals total = DiaryTotals.fromEntries(diary);
-  double get carbsTarget =>
-      ((goals.calories - goals.protein * 4 - goals.fat * 9) / 4)
-          .clamp(0, goals.calories)
-          .toDouble();
+  double get carbsTarget => goals.carbs;
   double get caloriesLeft =>
       (goals.calories - total.calories).clamp(0, goals.calories).toDouble();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../fitlife_theme.dart';
+import '../nutrition_goal_format.dart';
 
 class DayNutritionSummary extends StatelessWidget {
   const DayNutritionSummary({
@@ -97,9 +98,9 @@ class DayNutritionSummary extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _number('Съедено', calories.round()),
+                    _number('Съедено', calories.round().toString()),
                     const SizedBox(height: 18),
-                    _number('Дневная цель', target.round()),
+                    _number('Дневная цель', formatNutritionGoal(target)),
                   ],
                 ),
               ),
@@ -117,7 +118,7 @@ class DayNutritionSummary extends StatelessWidget {
     );
   }
 
-  Widget _number(String label, int value) => Column(
+  Widget _number(String label, String value) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
@@ -127,7 +128,7 @@ class DayNutritionSummary extends StatelessWidget {
       const SizedBox(height: 3),
       FittedBox(
         child: Text(
-          '$value',
+          value,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 23,
@@ -180,7 +181,7 @@ class MacroProgress extends StatelessWidget {
             ),
           ),
           Text(
-            'из ${target.round()} г',
+            'из ${formatNutritionGoal(target)} г',
             style: const TextStyle(color: muted, fontSize: 10),
           ),
           const SizedBox(height: 12),

@@ -61,6 +61,18 @@ fails explicitly rather than resurrecting it.
 `lib/core/models/nutrition_profile.dart` and `lib/core/nutrition/` implement
 portion scaling, daily aggregation, source-linked nutrient data, reference
 targets and the product catalogue. The calculations have no UI dependencies.
+`NutritionGoalSettings` is also the calculator result model (`NutritionGoals`
+is a compatibility alias). It owns limits, validation and the 4/9/4 energy
+budget. Carbs are the unrounded remaining energy divided by four; there is no
+independent minimum or stored carb target. A 1e-8 kcal tolerance accounts for
+binary floating-point noise only. UI preview, controller and repository use
+the same validation; version 1 storage remains unchanged. Goal display uses
+up to two decimals, while calculations and persistence keep full precision.
+The retained calculator validates measurements and fails on an incompatible
+energy budget instead of silently forcing extra carbohydrate energy. Its
+existing calorie/protein/fat allocation policy remains documented in
+`P0_NUTRITION_VERIFICATION.md`; automatic personalization is still a P1 task.
+Table-sourced food calories are not reconstructed from this target budget.
 `lib/pet_engine.dart` contains the independent, tested companion progression
 rules.
 
@@ -69,6 +81,10 @@ rules.
 `lib/app/app.dart` is an earlier interface, currently not used by main.dart.
 Its calculator and storage dependencies are retained. `tool/apply_design.py`
 only targets that earlier interface and must not run as part of a build.
+Invalid saved profile inputs show explicit fallback goals and a correction
+message in the earlier profile screen. Its profile dialog validates with the
+same calculator and releases controllers after `DialogRoute.completed`, once
+the reverse transition has removed the dialog from the overlay.
 
 ## Build contract
 

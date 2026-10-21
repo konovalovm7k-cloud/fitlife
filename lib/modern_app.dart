@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'app/fitlife_theme.dart';
 import 'app/bootstrap.dart';
 import 'app/fitlife_app_frame.dart';
+import 'app/nutrition_goal_format.dart';
 import 'app/state/fitlife_controller.dart';
 import 'app/state/fitlife_state.dart';
 import 'app/widgets/day_nutrition_summary.dart';
@@ -493,13 +494,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               _progressLine(
                 'Калории',
                 calories / kcalTarget,
-                '${calories.round()} / ${kcalTarget.round()} ккал',
+                '${calories.round()} / ${formatNutritionGoal(kcalTarget)} ккал',
               ),
               const SizedBox(height: 14),
               _progressLine(
                 'Белок',
                 protein / proteinTarget,
-                '${protein.round()} / ${proteinTarget.round()} г',
+                '${protein.round()} / ${formatNutritionGoal(proteinTarget)} г',
               ),
               const SizedBox(height: 14),
               _progressLine(
@@ -569,10 +570,14 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
               _profileRow('Вес', '${weight.toStringAsFixed(1)} кг'),
-              _profileRow('Цель по калориям', '${kcalTarget.round()} ккал'),
-              _profileRow('Белок', '${proteinTarget.round()} г'),
-              _profileRow('Жиры', '${fatTarget.round()} г'),
-              _profileRow('Клетчатка', '${fiberTarget.round()} г'),
+              _profileRow(
+                'Цель по калориям',
+                '${formatNutritionGoal(kcalTarget)} ккал',
+              ),
+              _profileRow('Белок', '${formatNutritionGoal(proteinTarget)} г'),
+              _profileRow('Жиры', '${formatNutritionGoal(fatTarget)} г'),
+              _profileRow('Углеводы', '${formatNutritionGoal(carbsTarget)} г'),
+              _profileRow('Клетчатка', '${formatNutritionGoal(fiberTarget)} г'),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: _editGoals,
@@ -974,31 +979,52 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _editGoals() async {
+    NutritionGoalSettings goalsFrom(List<double> values) =>
+        NutritionGoalSettings(
+          calories: values[0],
+          protein: values[1],
+          fat: values[2],
+          fiber: values[3],
+        );
     await showDialog<ValueEditResult>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ValueEditorDialog(
         title: 'Цели питания',
         fields: [
-          NumberFieldSpec('Калории, ккал', kcalTarget, min: 1),
-          NumberFieldSpec('Белок, г', proteinTarget, min: 1, max: 1000),
-          NumberFieldSpec('Жиры, г', fatTarget, min: 1, max: 1000),
-          NumberFieldSpec('Клетчатка, г', fiberTarget, min: 1, max: 1000),
+          NumberFieldSpec(
+            'Калории, ккал',
+            kcalTarget,
+            min: NutritionGoalSettings.minValue,
+            max: NutritionGoalSettings.maxCalories,
+          ),
+          NumberFieldSpec(
+            'Белок, г',
+            proteinTarget,
+            min: NutritionGoalSettings.minValue,
+            max: NutritionGoalSettings.maxGrams,
+          ),
+          NumberFieldSpec(
+            'Жиры, г',
+            fatTarget,
+            min: NutritionGoalSettings.minValue,
+            max: NutritionGoalSettings.maxGrams,
+          ),
+          NumberFieldSpec(
+            'Клетчатка, г',
+            fiberTarget,
+            min: NutritionGoalSettings.minValue,
+            max: NutritionGoalSettings.maxGrams,
+          ),
         ],
-        validate: (v) => v[1] * 4 + v[2] * 9 > v[0]
-            ? 'Калории из белков и жиров превышают дневную цель.'
-            : null,
-        onSave: (result) async {
-          final v = result.values;
-          await _controller.saveGoals(
-            NutritionGoalSettings(
-              calories: v[0],
-              protein: v[1],
-              fat: v[2],
-              fiber: v[3],
-            ),
-          );
+        validate: (v) => goalsFrom(v).validationError,
+        summaryBuilder: (v) {
+          final goals = goalsFrom(v);
+          if (goals.validationError != null) return null;
+          return 'Углеводы: ${formatNutritionGoal(goals.carbs)} г. '
+              'Рассчитаны из оставшихся калорий.';
         },
+        onSave: (result) => _controller.saveGoals(goalsFrom(result.values)),
       ),
     );
   }
