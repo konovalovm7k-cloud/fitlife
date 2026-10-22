@@ -8,14 +8,14 @@ enabled = false
 
 [vars]
 GEMINI_MODEL = "gemini-3.8-flash"
-USER_DAILY_LIMIT = "10"
-GLOBAL_DAILY_LIMIT = "100"
-GLOBAL_MINUTE_LIMIT = "5"
+USER_DAILY_LIMIT = "5"
+GLOBAL_DAILY_LIMIT = "20"
+GLOBAL_MINUTE_LIMIT = "4"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "fitlife-photo"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "516ce41c-c675-4e75-91e2-f5e4398a230e"
 migrations_dir = "migrations"
 
 [triggers]

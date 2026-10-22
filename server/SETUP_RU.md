@@ -4,6 +4,11 @@
 раз запустить сервер в ваших аккаунтах. После этого все пользователи подключаются
 к одному адресу, каждый со своим кодом. Пересобирать APK для смены адреса не нужно.
 
+Для аккаунта владельца сервер и база уже развёрнуты 22 октября 2026 года:
+`https://fitlife-photo.konovalov-m7k.workers.dev`.
+Не создавайте их повторно. Точный статус активации и оставшиеся проверки:
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## 1. Google AI Studio
 
 1. Откройте [Google AI Studio](https://aistudio.google.com/), войдите через Google.
@@ -31,13 +36,16 @@
 ```powershell
 npm install --global pnpm@11.25.0
 pnpm install --frozen-lockfile
-pnpm exec wrangler login
+pnpm exec wrangler login --device --browser=false --use-keyring --scopes account:read user:read workers_scripts:write d1:write
 pnpm exec wrangler d1 create fitlife-photo
 ```
 
 В браузере подтвердите вход Cloudflare. Последняя команда выдаст `database_id`.
-Укажите его вместо `REPLACE_WITH_D1_DATABASE_ID` в `server/wrangler.toml`.
-Это идентификатор базы, а не секретный ключ.
+Для нового независимого развёртывания замените `database_id` в
+`server/wrangler.toml` на ID своей базы. В репозитории уже указан ID базы владельца.
+Это идентификатор базы, а не секретный ключ. Параметр `--use-keyring` сохраняет
+авторизацию CLI в защищённом хранилище ОС; при запросе Wrangler установите его
+официальный модуль keyring. Не публикуйте файлы авторизации или журнал CLI.
 
 ```powershell
 pnpm exec wrangler d1 migrations apply fitlife-photo --remote
@@ -83,8 +91,12 @@ pnpm exec wrangler d1 execute fitlife-photo --remote --command "UPDATE users SET
 
 ## Лимиты и хранение
 
-Начальные ограничения в `wrangler.toml`: 10 запросов на пользователя в сутки,
-100 на весь сервер в сутки и 5 в минуту на весь сервер. Дни считаются по UTC.
+Ограничения в `wrangler.toml`: 5 запросов на пользователя в сутки,
+20 на весь сервер в сутки и 4 в минуту на весь сервер. Дни считаются по UTC.
+22 октября 2026 года AI Studio показывает для `gemini-3.8-flash` в проекте
+владельца Free tier: 5 запросов в минуту, 250 000 токенов в минуту,
+20 запросов в сутки. Это квота всего Google-проекта, включая обращения вне FitLife,
+а не обещание 20 успешных распознаваний каждый день. Квоты могут измениться.
 Настройте их не выше реальных квот вашего Google-проекта и повторите `wrangler deploy`.
 Ошибки распознавания тоже используют резерв; автоматических повторов нет.
 

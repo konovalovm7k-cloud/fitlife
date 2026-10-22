@@ -58,5 +58,8 @@ Flutter -> HTTPS Cloudflare Worker -> Google Gemini. Общий сервер д�
 Подписанная release-сборка и Android-проверка этапа 9 прошли локально.
 Текущая облачная проверка доступна в pull request #2; подробности локального
 прогона: [PHOTO_ANALYSIS_VERIFICATION.md](PHOTO_ANALYSIS_VERIFICATION.md).
-Этап 10 ожидает регистрации аккаунтов владельца, ключа и развёртывания.
+Этап 10 выполнен частично: 22 октября 2026 года аккаунты подключены, Worker/D1
+развёрнуты, миграция применена и доступ `owner` выдан. `/health` отвечает успешно.
+Секрет Google ещё не перенесён; настоящее распознавание пока не проверено.
+Подробности: [server/DEPLOYMENT.md](server/DEPLOYMENT.md).
 Инструкция: [server/SETUP_RU.md](server/SETUP_RU.md).
