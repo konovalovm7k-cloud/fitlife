@@ -131,8 +131,12 @@ export async function analyze(bytes, env, fetcher = fetch) {
       });
     if (!response.ok) {
       await response.body?.cancel();
+      const code = {
+        400: 'provider_request', 401: 'provider_auth', 403: 'provider_forbidden',
+        404: 'provider_model', 429: 'provider_quota',
+      }[response.status] ?? 'provider_unavailable';
       throw new ApiError(response.status === 429 ? 429 : 502,
-        response.status === 429 ? 'provider_quota' : 'provider_unavailable');
+        code);
     }
     const raw = await boundedBody(response.body, 65536);
     const data = JSON.parse(new TextDecoder().decode(raw));

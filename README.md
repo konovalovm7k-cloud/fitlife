@@ -14,8 +14,9 @@
 В APK нет рабочего облачного адреса или общего ключа: подключение настраивается
 в приложении после развёртывания. Бесплатные тарифы ограничены квотами и регионами.
 Инструкция: [server/SETUP_RU.md](server/SETUP_RU.md).
-Сервер владельца уже развёрнут; ключ Gemini и реальная облачная проверка пока
-ожидают активации. Текущий статус: [server/DEPLOYMENT.md](server/DEPLOYMENT.md).
+Сервер владельца активирован: Gemini 3.5 Flash-Lite проверен на публичном фото
+яблока и пустом изображении. Текущий статус и ограничения:
+[server/DEPLOYMENT.md](server/DEPLOYMENT.md).
 Подробный план: [PHOTO_ANALYSIS_PLAN.md](PHOTO_ANALYSIS_PLAN.md).
 Результаты локальных проверок: [PHOTO_ANALYSIS_VERIFICATION.md](PHOTO_ANALYSIS_VERIFICATION.md).
 

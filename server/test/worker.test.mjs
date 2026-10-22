@@ -30,7 +30,7 @@ class SqliteD1 {
 async function setup() {
   const DB = new SqliteD1();
   DB.db.prepare('INSERT INTO users(id, token_hash) VALUES (?, ?)').run('alice', await hashToken(token));
-  return { DB, GEMINI_API_KEY: 'test-secret', GEMINI_MODEL: 'gemini-3.8-flash' };
+  return { DB, GEMINI_API_KEY: 'test-secret', GEMINI_MODEL: 'gemini-3.5-flash-lite' };
 }
 function provider(result = meal, status = 200) {
   return async () => Response.json({ candidates: [{ finishReason: 'STOP',
@@ -41,7 +41,7 @@ test('authenticated photo reaches Gemini with schema and returns validated estim
   let calls = 0;
   const response = await handle(request(), env, async (url, options) => {
     calls++;
-    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     assert.equal(options.headers['x-goog-api-key'], 'test-secret');
     assert.equal(options.redirect, 'manual');
     const body = JSON.parse(options.body);
@@ -113,6 +113,21 @@ test('provider failures are sanitized and consume one reservation without auto r
   assert.deepEqual(await response.json(), { error: 'provider_quota' });
   assert.equal(calls, 1);
   assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 1);
+});
+test('provider errors expose only safe categories, never response bodies or credentials', async () => {
+  for (const [status, code] of [
+    [400, 'provider_request'], [401, 'provider_auth'], [403, 'provider_forbidden'],
+    [404, 'provider_model'], [302, 'provider_unavailable'], [500, 'provider_unavailable'],
+  ]) {
+    let calls = 0;
+    const response = await handle(request(), await setup(), async () => {
+      calls++;
+      return new Response('private body with test-secret and photo data', { status });
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), { error: code });
+    assert.equal(calls, 1);
+  }
 });
 test('invalid, blocked and truncated provider results never become food', async () => {
   for (const fetcher of [provider({ ...meal, items: [{ ...food, kcal: -1 }] }),

@@ -14,7 +14,7 @@ test('real Workers runtime and D1 execute authenticated photo contract with mock
   ],
     compatibilityDate: '2026-10-20',
     d1Databases: ['DB'],
-    bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.8-flash',
+    bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite',
       USER_DAILY_LIMIT: '2', GLOBAL_DAILY_LIMIT: '3', GLOBAL_MINUTE_LIMIT: '3' },
     outboundService: async (request) => {
       calls++;
