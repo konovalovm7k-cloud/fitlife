@@ -88,6 +88,30 @@ void main() {
     );
   });
   test(
+    'text estimates retain their source after reload and retry without photo labels',
+    () async {
+      final meal = PhotoMeal(
+        id: 'c' * 32,
+        day: DateTime(2026, 10, 22),
+        meal: 'Обед',
+        source: MealEstimateSource.text,
+        items: [PhotoFood.fromJson(sampleFood)],
+      );
+      await savePhotoMeal(meal);
+      final saved = await savePhotoMeal(meal);
+      expect(saved.length, 1);
+      expect(saved.single.id, startsWith('text_'));
+      final prefs = await SharedPreferences.getInstance();
+      final raw = jsonDecode(prefs.getString('diary_2026-10-22')!) as List;
+      final restored = DiaryItem.fromJson(
+        Map<String, dynamic>.from(raw.single as Map),
+      );
+      expect(restored.food.isTextEstimate, isTrue);
+      expect(restored.food.isPhotoEstimate, isFalse);
+      expect(restored.kcal, 195);
+    },
+  );
+  test(
     'false disk write retries real storage despite cached entries without duplicates',
     () async {
       final disk = FailingPhotoDisk();

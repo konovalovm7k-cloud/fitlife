@@ -35,14 +35,25 @@ class _PhotoPageState extends State<PhotoPage> {
   PhotoService? _service;
   bool _busy = false;
   String? _error;
+  PhotoConnection? _connection;
   int _attempt = 0;
   @override
   void initState() {
     super.initState();
+    if (widget.store.hasAutomaticConnection) _refreshConnection();
     if (widget.pickImage == null &&
         !kIsWeb &&
         defaultTargetPlatform == TargetPlatform.android) {
       _recoverPhoto();
+    }
+  }
+
+  Future<void> _refreshConnection() async {
+    try {
+      final connection = await widget.store.read();
+      if (mounted) setState(() => _connection = connection);
+    } catch (_) {
+      // Connection errors must not block the offline diary or image selection.
     }
   }
 
@@ -112,9 +123,13 @@ class _PhotoPageState extends State<PhotoPage> {
     }
   }
 
-  Future<void> _settings() => Navigator.of(context).push<void>(
-    MaterialPageRoute(builder: (_) => PhotoSettingsPage(store: widget.store)),
-  );
+  Future<void> _settings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => PhotoSettingsPage(store: widget.store)),
+    );
+    await _refreshConnection();
+  }
+
   Future<void> _analyze() async {
     if (_busy || _photo == null) return;
     final day = widget.day;
@@ -300,6 +315,22 @@ class _PhotoPageState extends State<PhotoPage> {
           child: Text(
             _error!,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
+      if (_connection != null && _error == null && !_busy)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Icon(Icons.verified_user_outlined, size: 18, color: green),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Подключение готово. Фото отправится только с вашего согласия.',
+                  style: TextStyle(color: green, fontSize: 12),
+                ),
+              ),
+            ],
           ),
         ),
       if (_photo != null)

@@ -102,9 +102,11 @@ class _PhotoSettingsPageState extends State<PhotoSettingsPage> {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Получите адрес сервера и личный код у владельца FitLife. '
-          'Один сервер обслуживает нескольких пользователей. Код хранится защищённо на телефоне.',
+        Text(
+          widget.store.hasAutomaticConnection
+              ? 'Ваша персональная сборка подключается автоматически. Ключ Google остаётся только на сервере. Ниже дополнительные настройки.'
+              : 'Получите адрес сервера и личный код у владельца FitLife. '
+                    'Один сервер обслуживает нескольких пользователей. Код хранится защищённо на телефоне.',
         ),
         const SizedBox(height: 20),
         if (_busy) const LinearProgressIndicator(),
@@ -190,6 +192,31 @@ class _PhotoSettingsPageState extends State<PhotoSettingsPage> {
           onPressed: _busy ? null : _clear,
           child: const Text('Удалить подключение'),
         ),
+        if (widget.store.hasAutomaticConnection)
+          TextButton.icon(
+            onPressed: _busy
+                ? null
+                : () async {
+                    setState(() {
+                      _busy = true;
+                      _error = null;
+                    });
+                    try {
+                      await widget.store.restoreAutomatic();
+                      await _read();
+                    } catch (_) {
+                      if (mounted) {
+                        setState(() {
+                          _busy = false;
+                          _error =
+                              'Не удалось восстановить подключение. Повторите позже.';
+                        });
+                      }
+                    }
+                  },
+            icon: const Icon(Icons.restart_alt),
+            label: const Text('Восстановить автоподключение'),
+          ),
         const SizedBox(height: 12),
         const Text(
           'Владелец: инструкция запуска находится в server/SETUP_RU.md репозитория FitLife. '

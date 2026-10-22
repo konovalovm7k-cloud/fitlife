@@ -22,9 +22,10 @@ Future<List<DiaryItem>> savePhotoMeal(
   final store = DiaryPreferences(prefs);
   final current = await store.readRecords(key, DiaryItem.fromJson);
   final entries = <DiaryItem>[];
+  final kind = meal.source == MealEstimateSource.text ? 'text' : 'photo';
   for (var i = 0; i < meal.items.length; i++) {
     final item = meal.items[i];
-    final id = 'photo_${meal.id}_$i';
+    final id = '${kind}_${meal.id}_$i';
     final p = item.nutrition;
     entries.add(
       DiaryItem(
@@ -41,12 +42,13 @@ Future<List<DiaryItem>> savePhotoMeal(
           fat: p.fat,
           carbs: p.carbs,
           fiber: p.fiber,
-          isPhotoEstimate: true,
+          isPhotoEstimate: meal.source == MealEstimateSource.photo,
+          isTextEstimate: meal.source == MealEstimateSource.text,
         ),
       ),
     );
   }
-  final prefix = 'photo_${meal.id}_';
+  final prefix = '${kind}_${meal.id}_';
   final updated = [
     ...current.where((entry) => !entry.id.startsWith(prefix)),
     ...entries,

@@ -95,6 +95,7 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
           day: widget.day,
           meal: _meal,
           items: List.unmodifiable(_items),
+          source: widget.analysis.source,
         ),
       );
       if (mounted) Navigator.pop(context, true);
@@ -134,9 +135,14 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'ОЦЕНКА ПО ФОТО',
-                    style: TextStyle(color: Colors.white70, letterSpacing: 1.4),
+                  Text(
+                    widget.analysis.source == MealEstimateSource.text
+                        ? 'ОЦЕНКА ПО ОПИСАНИЮ'
+                        : 'ОЦЕНКА ПО ФОТО',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      letterSpacing: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(

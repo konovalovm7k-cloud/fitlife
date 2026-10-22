@@ -6,6 +6,8 @@ import 'package:fitlife/main.dart';
 import 'package:fitlife/modern_app.dart';
 import 'package:fitlife/features/photo_analysis/photo_models.dart';
 import 'package:fitlife/features/photo_analysis/photo_review_page.dart';
+import 'package:fitlife/features/photo_analysis/text_meal_page.dart';
+import 'package:fitlife/features/progress/weekly_summary_page.dart';
 import 'package:fitlife/core/models/nutrition_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -112,6 +114,23 @@ void main() {
     await tester.pumpAndSettle();
     await capture('add-food');
     final navigator = Navigator.of(tester.element(find.byType(FitLifeHome)));
+    navigator.pop();
+    await tester.pumpAndSettle();
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            TextMealPage(day: now, meal: 'Обед', onSave: (_) async {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await capture('text-meal');
+    navigator.pop();
+    await tester.pumpAndSettle();
+    navigator.push<DateTime>(
+      MaterialPageRoute(builder: (_) => WeeklySummaryPage(end: now)),
+    );
+    await tester.pumpAndSettle();
+    await capture('weekly-summary');
     navigator.pop();
     await tester.pumpAndSettle();
     navigator.push<void>(

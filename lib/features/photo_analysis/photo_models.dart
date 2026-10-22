@@ -2,6 +2,8 @@ import '../../core/models/nutrition_profile.dart';
 
 const photoMeals = ['Завтрак', 'Обед', 'Ужин', 'Перекус'];
 
+enum MealEstimateSource { photo, text }
+
 class PhotoFood {
   const PhotoFood({
     required this.name,
@@ -57,12 +59,18 @@ class PhotoAnalysis {
     required this.requestId,
     required this.items,
     required this.warnings,
+    this.source = MealEstimateSource.photo,
   });
   final String requestId;
   final List<PhotoFood> items;
   final List<String> warnings;
+  final MealEstimateSource source;
 
-  factory PhotoAnalysis.fromJson(Map<String, dynamic> json, String requestId) {
+  factory PhotoAnalysis.fromJson(
+    Map<String, dynamic> json,
+    String requestId, {
+    MealEstimateSource source = MealEstimateSource.photo,
+  }) {
     final items = json['items'];
     final warnings = json['warnings'];
     if (json['version'] != 1 ||
@@ -86,6 +94,7 @@ class PhotoAnalysis {
           .map((e) => PhotoFood.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       warnings: warnings.cast<String>(),
+      source: source,
     );
   }
 }
@@ -96,9 +105,11 @@ class PhotoMeal {
     required this.day,
     required this.meal,
     required this.items,
+    this.source = MealEstimateSource.photo,
   });
   final String id;
   final DateTime day;
   final String meal;
   final List<PhotoFood> items;
+  final MealEstimateSource source;
 }

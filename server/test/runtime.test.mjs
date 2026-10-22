@@ -51,3 +51,40 @@ test('real Workers runtime and D1 execute authenticated photo contract with mock
     assert.equal((await send('e'.repeat(32))).status, 401);
   } finally { await mf.dispose(); }
 });
+
+test('real Workers runtime validates UTF-8 descriptions and shares quota with photos', async () => {
+  let calls = 0;
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+  ], compatibilityDate: '2026-10-20', d1Databases: ['DB'],
+    bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite', USER_DAILY_LIMIT: '1' },
+    outboundService: async (request) => {
+      calls++;
+      const input = await request.json();
+      assert.deepEqual(input.contents[0].parts, [{ text: 'Яблоко 180 г' }]);
+      return WorkerResponse.json({ candidates: [{ finishReason: 'STOP', content: { parts: [
+        { text: JSON.stringify({ items: [], warnings: ['Тестовый ответ.'] }) },
+      ] } }] });
+    },
+  }));
+  try {
+    const db = await mf.getD1Database('DB');
+    const sql = readFileSync(new URL('../migrations/0001.sql', import.meta.url), 'utf8');
+    for (const statement of sql.split(';').filter(s => s.trim())) await db.prepare(statement).run();
+    const token = 'a'.repeat(43);
+    await db.prepare('INSERT INTO users(id, token_hash) VALUES (?, ?)').bind('alice', await hashToken(token)).run();
+    const send = (text, id) => mf.dispatchFetch('https://fitlife.test/v1/analyze-text', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Request-Id': id },
+      body: JSON.stringify({ text }),
+    });
+    assert.equal((await send('', 'a'.repeat(32))).status, 400);
+    assert.equal((await send('Яблоко 180 г', 'a'.repeat(32))).status, 200);
+    const photo = await mf.dispatchFetch('https://fitlife.test/v1/analyze', { method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/jpeg', 'X-Request-Id': 'b'.repeat(32) },
+      body: new Uint8Array([255, 216, 255, 224, 255, 217]),
+    });
+    assert.equal(photo.status, 429);
+    assert.equal(calls, 1);
+  } finally { await mf.dispose(); }
+});

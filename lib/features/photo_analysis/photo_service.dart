@@ -46,19 +46,35 @@ class PhotoConnection {
 }
 
 class PhotoConnectionStore {
-  const PhotoConnectionStore();
+  const PhotoConnectionStore({
+    this.automaticAddress = const String.fromEnvironment(
+      'FITLIFE_PHOTO_SERVER',
+    ),
+    this.automaticToken = const String.fromEnvironment('FITLIFE_PHOTO_TOKEN'),
+  });
+  final String automaticAddress;
+  final String automaticToken;
   static const _storage = FlutterSecureStorage();
   static const _key = 'fitlife_photo_connection_v1';
-  Future<PhotoConnection?> read() async {
-    final raw = await _storage
-        .read(key: _key)
-        .timeout(const Duration(seconds: 10));
+  static const _disabledKey = 'fitlife_photo_automatic_disabled_v1';
+  bool get hasAutomaticConnection =>
+      automaticAddress.isNotEmpty && automaticToken.isNotEmpty;
+
+  Future<PhotoConnection?> read() => (() async {
+    if (await _storage.read(key: _disabledKey) == '1') return null;
+    final raw = await _storage.read(key: _key);
+    if (raw == null && hasAutomaticConnection) {
+      final connection = PhotoConnection(automaticAddress, automaticToken);
+      await _persist(connection);
+      if (await _storage.read(key: _disabledKey) == '1') return null;
+      return connection;
+    }
     if (raw == null) return null;
     final json = jsonDecode(raw) as Map<String, dynamic>;
     return PhotoConnection(json['address'] as String, json['token'] as String);
-  }
+  })().timeout(const Duration(seconds: 10));
 
-  Future<void> write(PhotoConnection connection) => _storage
+  Future<void> _persist(PhotoConnection connection) => _storage
       .write(
         key: _key,
         value: jsonEncode({
@@ -67,8 +83,22 @@ class PhotoConnectionStore {
         }),
       )
       .timeout(const Duration(seconds: 10));
-  Future<void> clear() =>
-      _storage.delete(key: _key).timeout(const Duration(seconds: 10));
+  Future<void> write(PhotoConnection connection) => (() async {
+    await _persist(connection);
+    await _storage.delete(key: _disabledKey);
+  })().timeout(const Duration(seconds: 10));
+  Future<void> clear() => (() async {
+    // An explicit disconnect must not silently re-enable bundled access.
+    await _storage.write(key: _disabledKey, value: '1');
+    await _storage.delete(key: _key);
+  })().timeout(const Duration(seconds: 10));
+
+  Future<PhotoConnection?> restoreAutomatic() async {
+    if (!hasAutomaticConnection) return null;
+    final connection = PhotoConnection(automaticAddress, automaticToken);
+    await write(connection);
+    return connection;
+  }
 }
 
 String photoRequestId() {
@@ -103,17 +133,44 @@ class PhotoService {
         'Подготовьте другое фото: нужен JPEG до 512 КБ.',
       );
     }
+    return _send(connection, jpeg, 'image/jpeg', MealEstimateSource.photo);
+  }
+
+  Future<PhotoAnalysis> analyzeText(PhotoConnection connection, String text) {
+    final description = text.trim();
+    if (description.isEmpty ||
+        description.length > 2000 ||
+        RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f]').hasMatch(description)) {
+      throw const PhotoFailure('Опишите еду: от 1 до 2000 символов.');
+    }
+    return _send(
+      connection,
+      Uint8List.fromList(utf8.encode(jsonEncode({'text': description}))),
+      'application/json',
+      MealEstimateSource.text,
+    );
+  }
+
+  Future<PhotoAnalysis> _send(
+    PhotoConnection connection,
+    Uint8List body,
+    String contentType,
+    MealEstimateSource source,
+  ) async {
     final id = photoRequestId();
     try {
       return await (() async {
-        final request = http.Request('POST', connection.endpoint)
+        final endpoint = source == MealEstimateSource.text
+            ? connection.endpoint.replace(path: '/v1/analyze-text')
+            : connection.endpoint;
+        final request = http.Request('POST', endpoint)
           ..followRedirects = false
           ..headers.addAll({
             'Authorization': 'Bearer ${connection.token}',
-            'Content-Type': 'image/jpeg',
+            'Content-Type': contentType,
             'X-Request-Id': id,
           })
-          ..bodyBytes = jpeg;
+          ..bodyBytes = body;
         final response = await _client.send(request);
         if (response.statusCode != 200) {
           unawaited(response.stream.listen((_) {}).cancel());
@@ -140,6 +197,7 @@ class PhotoService {
         return PhotoAnalysis.fromJson(
           jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>,
           id,
+          source: source,
         );
       })().timeout(timeout);
     } on PhotoFailure {

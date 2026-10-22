@@ -68,3 +68,23 @@ after 30 days via scheduled cleanup. Read replication is not enabled.
 The server is intended for an invited small group. Runtime tests use real
 workerd/D1 with a mock provider; real Gemini activation requires the owner's
 accounts, key and HTTPS deployment. See `server/SETUP_RU.md`.
+
+## Text Meals And Weekly Overview (4.5)
+
+`text_meal_page.dart` sends only the explicitly consented description through
+`POST /v1/analyze-text`. It shares photo authentication, quota reservations,
+validated per-100g output, editable review and batch persistence. Additive
+`textEstimate` metadata distinguishes text estimates without migrating old keys.
+No diary, weight or profile is uploaded. A disconnected or offline user can still
+use the existing local catalogue and diary.
+
+`PhotoConnectionStore` optionally bootstraps a private build-time connection into
+encrypted Android storage. Public builds have no defaults. Explicit disconnect
+persists across relaunches; restoration is a separate user action. This is an
+extractable personal FitLife invitation, not a way to hide a provider key in APK.
+Personal builds and their define files must never be published in Actions/Git.
+
+`lib/features/progress/` reads seven existing local calendar-date diary/water keys.
+Missing or damaged food days are excluded from averages and clearly identified.
+Historical days are not compared against today's goals. The report is generated
+locally and copied only on request. See `JOURNABLE_UX_REVIEW.md` for product scope.

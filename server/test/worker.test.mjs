@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES } from '../src/worker.mjs';
+import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES, schema } from '../src/worker.mjs';
 
 const token = 'a'.repeat(43);
 const food = { name: 'Рис варёный', grams: 150, kcal: 130, protein: 2.7,
@@ -159,4 +159,45 @@ test('health, method, missing config and DB failures do not disclose internals',
   const response = await handle(request(), { DB: {}, GEMINI_API_KEY: 'x', GEMINI_MODEL: 'bad/path' });
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'configuration' });
+});
+
+function textRequest(text = 'Рис варёный 150 г', id = 'a'.repeat(32), body) {
+  return new Request('https://fitlife.test/v1/analyze-text', { method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Request-Id': id },
+    body: body ?? JSON.stringify({ text }),
+  });
+}
+test('text descriptions use the same strict nutrition schema without inventing an image', async () => {
+  const result = await handle(textRequest(), await setup(), async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.deepEqual(body.contents[0].parts, [{ text: 'Рис варёный 150 г' }]);
+    assert.ok(body.systemInstruction.parts[0].text.includes('text meal description'));
+    assert.deepEqual(body.generationConfig.responseSchema, schema);
+    assert.equal(body.generationConfig.responseMimeType, 'application/json');
+    return provider()();
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual((await result.json()).items, meal.items);
+});
+test('invalid descriptions are rejected before quota and provider calls', async () => {
+  const env = await setup();
+  let calls = 0;
+  const fetcher = async () => { calls++; return provider()(); };
+  for (const body of ['{}', 'null', '[]', 'bad-json', JSON.stringify({ text: '' }),
+    JSON.stringify({ text: 'я'.repeat(2001) }), JSON.stringify({ text: 'еда\u0000' }),
+    JSON.stringify({ text: 'еда', extra: 'bad' }), new Uint8Array([195, 40])]) {
+    assert.equal((await handle(textRequest('', 'a'.repeat(32), body), env, fetcher)).status, 400);
+  }
+  assert.equal((await handle(textRequest('', 'a'.repeat(32), 'x'.repeat(16385)), env, fetcher)).status, 413);
+  assert.equal(calls, 0);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 0);
+});
+test('photo and text share the per-user quota and duplicate-request protection', async () => {
+  const env = await setup();
+  env.USER_DAILY_LIMIT = '2';
+  assert.equal((await handle(request(), env, provider())).status, 200);
+  assert.equal((await handle(textRequest(), env, provider())).status, 429);
+  assert.equal((await handle(textRequest('Яблоко 180 г', 'b'.repeat(32)), env, provider())).status, 200);
+  assert.equal((await handle(request({ id: 'c'.repeat(32) }), env, provider())).status, 429);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 2);
 });
