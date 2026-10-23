@@ -1,6 +1,6 @@
 import unittest
 import xml.etree.ElementTree as ET
-from android_release_smoke import ReleaseSmoke
+from android_release_smoke import ReleaseSmoke, WATER
 
 
 def dialog(title, *, package="android", close=True):
@@ -53,6 +53,26 @@ class LauncherAnrTest(unittest.TestCase):
         smoke = FakeSmoke()
         self.assertFalse(smoke.dismiss_emulator_launcher_anr([]))
         self.assertEqual(smoke.taps, [])
+
+    def test_scrolled_tap_restores_viewport_after_launcher_dialog(self):
+        water = ET.Element("node", {"text": WATER, "resource-id": "water"})
+        class ScrollingSmoke(FakeSmoke):
+            def __init__(self):
+                super().__init__()
+                self.screens = iter([dialog("Pixel Launcher isn't responding"), [], [water]])
+                self.swipes = 0
+            def read_screen(self):
+                return next(self.screens)
+            def adb(self, *args):
+                if args == ("shell", "wm", "size"):
+                    return "Physical size: 1440x3120"
+                if "swipe" in args:
+                    self.swipes += 1
+                return ""
+        smoke = ScrollingSmoke()
+        smoke.tap(WATER, scroll=True)
+        self.assertEqual(smoke.taps, ["android:id/aerr_close", "water"])
+        self.assertEqual(smoke.swipes, 1)
 
 
 if __name__ == "__main__":

@@ -85,8 +85,8 @@ class ReleaseSmoke:
         print("Recorded and closed one Pixel Launcher ANR; FitLife checks remain required")
         return True
 
-    def tap(self, label):
-        nodes = self.wait_for(label)
+    def tap(self, label, *, scroll=False):
+        nodes = self.scroll_to(label) if scroll else self.wait_for(label)
         node = next(n for n in nodes if label in self.label(n))
         self.tap_node(node)
 
@@ -97,6 +97,8 @@ class ReleaseSmoke:
         width, height = map(int, sizes[-1])
         for _ in range(10):
             nodes = self.read_screen()
+            if self.dismiss_emulator_launcher_anr(nodes):
+                continue
             if any(label in self.label(node) for node in nodes):
                 return nodes
             self.adb("shell", "input", "swipe", str(width // 2), str(height * 3 // 4),
@@ -150,8 +152,8 @@ class ReleaseSmoke:
             # Use an increment that remains deterministic if re-run on this AVD.
             nodes = self.read_screen()
             if not any(SAVED_WATER in self.label(node) for node in nodes):
-                self.tap(WATER)
-            self.wait_for(SAVED_WATER)
+                self.tap(WATER, scroll=True)
+            self.scroll_to(SAVED_WATER)
             time.sleep(1)
             self.capture("saved-water")
             self.launch()
