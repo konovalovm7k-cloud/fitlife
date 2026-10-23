@@ -27,7 +27,7 @@ void main() {
   });
 
   test('daily total combines portions from different foods', () {
-    final day = NutritionDay()
+    final day = const NutritionDay()
         .add(nutritionDatabase.first, 100)
         .add(nutritionDatabase.first, 50);
 

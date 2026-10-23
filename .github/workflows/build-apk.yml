@@ -2,15 +2,43 @@ name: Build FitLife APK
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches: ["main"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: fitlife-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  photo-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Test photo server and atomic SQL quotas
+        working-directory: server
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+          node --test
+          pnpm exec wrangler deploy --dry-run --outdir dist/worker
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -19,28 +47,74 @@ jobs:
           flutter-version: "3.44.7"
           cache: true
 
-      - name: Generate Android platform
-        run: flutter create --platforms=android --no-pub .
-
-      - name: Remove generated template tests
-        run: rm -f test/widget_test.dart
+      - name: Set up Java
+        uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Analyze Dart code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze
 
       - name: Run tests
         run: flutter test
 
+      - name: Test Android smoke harness
+        run: python3 -m unittest discover -s tool -p 'test_*.py'
+
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FITLIFE_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fitlife-release.jks"
+            echo "FITLIFE_RELEASE_STORE=$RUNNER_TEMP/fitlife-release.jks" >> "$GITHUB_ENV"
+          fi
+
       - name: Build release APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-pub
+        env:
+          FITLIFE_KEYSTORE_PATH: ${{ env.FITLIFE_RELEASE_STORE }}
+          FITLIFE_STORE_PASSWORD: ${{ secrets.FITLIFE_STORE_PASSWORD }}
+          FITLIFE_KEY_PASSWORD: ${{ secrets.FITLIFE_KEY_PASSWORD }}
+          FITLIFE_KEY_ALIAS: ${{ secrets.FITLIFE_KEY_ALIAS }}
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: FitLife-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke test the actual release APK
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7_pro
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: python3 tool/android_release_smoke.py build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload release smoke-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: FitLife-Android-Smoke
+          path: build/release-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
 
 # FitLife 2.0: source code is built as committed; CI must not rewrite app.dart.

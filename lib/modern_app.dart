@@ -1,17 +1,29 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
-const green = Color(0xFF3D9B70);
-const greenDark = Color(0xFF287451);
-const mint = Color(0xFFE8F5EE);
-const bg = Color(0xFFF6F8F6);
-const ink = Color(0xFF17231D);
-const muted = Color(0xFF7A857E);
-const line = Color(0xFFE5EAE6);
+import 'app/fitlife_theme.dart';
+import 'app/widgets/day_nutrition_summary.dart';
+import 'app/widgets/companion_avatar.dart';
+import 'app/widgets/value_editor.dart';
+import 'core/models/diary_item.dart';
+import 'core/nutrition/nutrition_catalog_page.dart';
+import 'core/nutrition/nutrition_database.dart';
+import 'core/nutrition/nutrition_day.dart';
+import 'data/repositories/diary_preferences.dart';
+import 'data/repositories/diary_repository.dart';
+import 'features/photo_analysis/photo_diary.dart';
+import 'features/photo_analysis/photo_models.dart';
+import 'features/photo_analysis/photo_page.dart';
+import 'features/photo_analysis/photo_settings_page.dart';
+import 'features/photo_analysis/text_meal_page.dart';
+import 'features/progress/weekly_summary_page.dart';
+
+export 'core/models/diary_item.dart';
 
 class ModernFitLifeApp extends StatelessWidget {
   const ModernFitLifeApp({super.key});
@@ -21,164 +33,383 @@ class ModernFitLifeApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'FitLife',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: bg,
-        colorScheme: ColorScheme.fromSeed(seedColor: green),
-      ),
+      locale: const Locale('ru'),
+      supportedLocales: const [Locale('ru')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      theme: fitLifeTheme(),
       home: const FitLifeHome(),
     );
   }
 }
 
-class FoodItem {
-  const FoodItem({
-    required this.id,
-    required this.name,
-    required this.kcal,
-    required this.protein,
-    required this.fat,
-    required this.carbs,
-    required this.fiber,
-  });
-
-  final String id;
-  final String name;
-  final double kcal;
-  final double protein;
-  final double fat;
-  final double carbs;
-  final double fiber;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'kcal': kcal,
-      'protein': protein,
-      'fat': fat,
-      'carbs': carbs,
-      'fiber': fiber,
-    };
-  }
-
-  factory FoodItem.fromJson(Map<String, dynamic> json) {
-    return FoodItem(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      kcal: (json['kcal'] as num).toDouble(),
-      protein: (json['protein'] as num).toDouble(),
-      fat: (json['fat'] as num).toDouble(),
-      carbs: (json['carbs'] as num).toDouble(),
-      fiber: (json['fiber'] as num).toDouble(),
-    );
-  }
-}
-
-class DiaryItem {
-  const DiaryItem({
-    required this.id,
-    required this.meal,
-    required this.food,
-    required this.grams,
-    required this.time,
-  });
-
-  final String id;
-  final String meal;
-  final FoodItem food;
-  final double grams;
-  final String time;
-
-  double get kcal => food.kcal * grams / 100;
-  double get protein => food.protein * grams / 100;
-  double get fat => food.fat * grams / 100;
-  double get carbs => food.carbs * grams / 100;
-  double get fiber => food.fiber * grams / 100;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'meal': meal,
-      'food': food.toJson(),
-      'grams': grams,
-      'time': time,
-    };
-  }
-
-  factory DiaryItem.fromJson(Map<String, dynamic> json) {
-    return DiaryItem(
-      id: json['id'] as String,
-      meal: json['meal'] as String,
-      food: FoodItem.fromJson(
-        Map<String, dynamic>.from(json['food'] as Map),
-      ),
-      grams: (json['grams'] as num).toDouble(),
-      time: json['time'] as String,
-    );
-  }
-}
-
 const builtInFoods = <FoodItem>[
-  FoodItem(id: 'egg', name: 'Яйцо', kcal: 157, protein: 12.7, fat: 10.9, carbs: 0.7, fiber: 0),
-  FoodItem(id: 'chicken', name: 'Куриная грудка', kcal: 120, protein: 22.5, fat: 2.6, carbs: 0, fiber: 0),
-  FoodItem(id: 'turkey', name: 'Индейка', kcal: 114, protein: 23.7, fat: 1.5, carbs: 0, fiber: 0),
-  FoodItem(id: 'turkey_ham', name: 'Ветчина из индейки', kcal: 84, protein: 18, fat: 2, carbs: 2, fiber: 0),
-  FoodItem(id: 'beef', name: 'Говядина постная', kcal: 158, protein: 26, fat: 6, carbs: 0, fiber: 0),
-  FoodItem(id: 'salmon', name: 'Лосось', kcal: 208, protein: 20, fat: 13, carbs: 0, fiber: 0),
-  FoodItem(id: 'tuna', name: 'Тунец', kcal: 116, protein: 26, fat: 0.8, carbs: 0, fiber: 0),
-  FoodItem(id: 'cottage', name: 'Творог 5%', kcal: 121, protein: 17, fat: 5, carbs: 1.8, fiber: 0),
-  FoodItem(id: 'yogurt', name: 'Греческий йогурт', kcal: 73, protein: 9, fat: 2.5, carbs: 3.8, fiber: 0),
-  FoodItem(id: 'skyr', name: 'Skyr', kcal: 35, protein: 6, fat: 0, carbs: 3, fiber: 0),
-  FoodItem(id: 'oats', name: 'Овсянка', kcal: 366, protein: 12.3, fat: 6.1, carbs: 59.5, fiber: 8.3),
-  FoodItem(id: 'buckwheat', name: 'Гречка', kcal: 343, protein: 13.6, fat: 3.4, carbs: 71.5, fiber: 10),
-  FoodItem(id: 'rice', name: 'Рис', kcal: 344, protein: 7, fat: 0.7, carbs: 78, fiber: 2.4),
-  FoodItem(id: 'couscous', name: 'Кускус', kcal: 376, protein: 12.8, fat: 0.6, carbs: 77.4, fiber: 5),
-  FoodItem(id: 'pasta', name: 'Макароны', kcal: 350, protein: 12, fat: 1.5, carbs: 70, fiber: 3),
-  FoodItem(id: 'potato', name: 'Картофель', kcal: 82, protein: 2, fat: 0.4, carbs: 17, fiber: 1.8),
-  FoodItem(id: 'bread', name: 'Хлеб цельнозерновой', kcal: 247, protein: 13, fat: 4.2, carbs: 41, fiber: 7),
-  FoodItem(id: 'pepper', name: 'Перец', kcal: 31, protein: 1, fat: 0.3, carbs: 6, fiber: 2.1),
-  FoodItem(id: 'iceberg', name: 'Айсберг', kcal: 14, protein: 0.9, fat: 0.1, carbs: 3, fiber: 1.2),
-  FoodItem(id: 'tomato', name: 'Помидор', kcal: 18, protein: 0.9, fat: 0.2, carbs: 3.9, fiber: 1.2),
-  FoodItem(id: 'cucumber', name: 'Огурец', kcal: 15, protein: 0.7, fat: 0.1, carbs: 3.6, fiber: 0.5),
-  FoodItem(id: 'broccoli', name: 'Брокколи', kcal: 34, protein: 2.8, fat: 0.4, carbs: 6.6, fiber: 2.6),
-  FoodItem(id: 'cauliflower', name: 'Цветная капуста', kcal: 25, protein: 1.9, fat: 0.3, carbs: 5, fiber: 2),
-  FoodItem(id: 'carrot', name: 'Морковь', kcal: 41, protein: 0.9, fat: 0.2, carbs: 9.6, fiber: 2.8),
-  FoodItem(id: 'mushroom', name: 'Шампиньоны', kcal: 22, protein: 3.1, fat: 0.3, carbs: 3.3, fiber: 1),
-  FoodItem(id: 'apple', name: 'Яблоко', kcal: 52, protein: 0.3, fat: 0.2, carbs: 13.8, fiber: 2.4),
-  FoodItem(id: 'banana', name: 'Банан', kcal: 89, protein: 1.1, fat: 0.3, carbs: 22.8, fiber: 2.6),
-  FoodItem(id: 'orange', name: 'Апельсин', kcal: 47, protein: 0.9, fat: 0.1, carbs: 11.8, fiber: 2.4),
-  FoodItem(id: 'peach', name: 'Персик', kcal: 39, protein: 0.9, fat: 0.3, carbs: 9.5, fiber: 1.5),
-  FoodItem(id: 'blackberry', name: 'Ежевика', kcal: 43, protein: 1.4, fat: 0.5, carbs: 9.6, fiber: 5.3),
-  FoodItem(id: 'blueberry', name: 'Черника', kcal: 57, protein: 0.7, fat: 0.3, carbs: 14.5, fiber: 2.4),
-  FoodItem(id: 'avocado', name: 'Авокадо', kcal: 160, protein: 2, fat: 14.7, carbs: 8.5, fiber: 6.7),
-  FoodItem(id: 'almonds', name: 'Миндаль', kcal: 579, protein: 21.2, fat: 49.9, carbs: 21.6, fiber: 12.5),
-  FoodItem(id: 'walnut', name: 'Грецкий орех', kcal: 654, protein: 15.2, fat: 65.2, carbs: 13.7, fiber: 6.7),
-  FoodItem(id: 'oil', name: 'Оливковое масло', kcal: 884, protein: 0, fat: 100, carbs: 0, fiber: 0),
-  FoodItem(id: 'sour_cream', name: 'Сметана 25%', kcal: 248, protein: 2.6, fat: 25, carbs: 3.2, fiber: 0),
-  FoodItem(id: 'ketchup', name: 'Кетчуп', kcal: 110, protein: 1.2, fat: 0.2, carbs: 25, fiber: 0.7),
+  FoodItem(
+    id: 'egg',
+    name: 'Яйцо',
+    kcal: 157,
+    protein: 12.7,
+    fat: 10.9,
+    carbs: 0.7,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'chicken',
+    name: 'Куриная грудка',
+    kcal: 120,
+    protein: 22.5,
+    fat: 2.6,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'turkey',
+    name: 'Индейка',
+    kcal: 114,
+    protein: 23.7,
+    fat: 1.5,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'turkey_ham',
+    name: 'Ветчина из индейки',
+    kcal: 84,
+    protein: 18,
+    fat: 2,
+    carbs: 2,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'beef',
+    name: 'Говядина постная',
+    kcal: 158,
+    protein: 26,
+    fat: 6,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'salmon',
+    name: 'Лосось',
+    kcal: 208,
+    protein: 20,
+    fat: 13,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'tuna',
+    name: 'Тунец',
+    kcal: 116,
+    protein: 26,
+    fat: 0.8,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'cottage',
+    name: 'Творог 5%',
+    kcal: 121,
+    protein: 17,
+    fat: 5,
+    carbs: 1.8,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'yogurt',
+    name: 'Греческий йогурт',
+    kcal: 73,
+    protein: 9,
+    fat: 2.5,
+    carbs: 3.8,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'skyr',
+    name: 'Skyr',
+    kcal: 35,
+    protein: 6,
+    fat: 0,
+    carbs: 3,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'oats',
+    name: 'Овсянка',
+    kcal: 366,
+    protein: 12.3,
+    fat: 6.1,
+    carbs: 59.5,
+    fiber: 8.3,
+  ),
+  FoodItem(
+    id: 'buckwheat',
+    name: 'Гречка',
+    kcal: 343,
+    protein: 13.6,
+    fat: 3.4,
+    carbs: 71.5,
+    fiber: 10,
+  ),
+  FoodItem(
+    id: 'rice',
+    name: 'Рис',
+    kcal: 344,
+    protein: 7,
+    fat: 0.7,
+    carbs: 78,
+    fiber: 2.4,
+  ),
+  FoodItem(
+    id: 'couscous',
+    name: 'Кускус',
+    kcal: 376,
+    protein: 12.8,
+    fat: 0.6,
+    carbs: 77.4,
+    fiber: 5,
+  ),
+  FoodItem(
+    id: 'pasta',
+    name: 'Макароны',
+    kcal: 350,
+    protein: 12,
+    fat: 1.5,
+    carbs: 70,
+    fiber: 3,
+  ),
+  FoodItem(
+    id: 'potato',
+    name: 'Картофель',
+    kcal: 82,
+    protein: 2,
+    fat: 0.4,
+    carbs: 17,
+    fiber: 1.8,
+  ),
+  FoodItem(
+    id: 'bread',
+    name: 'Хлеб цельнозерновой',
+    kcal: 247,
+    protein: 13,
+    fat: 4.2,
+    carbs: 41,
+    fiber: 7,
+  ),
+  FoodItem(
+    id: 'pepper',
+    name: 'Перец',
+    kcal: 31,
+    protein: 1,
+    fat: 0.3,
+    carbs: 6,
+    fiber: 2.1,
+  ),
+  FoodItem(
+    id: 'iceberg',
+    name: 'Айсберг',
+    kcal: 14,
+    protein: 0.9,
+    fat: 0.1,
+    carbs: 3,
+    fiber: 1.2,
+  ),
+  FoodItem(
+    id: 'tomato',
+    name: 'Помидор',
+    kcal: 18,
+    protein: 0.9,
+    fat: 0.2,
+    carbs: 3.9,
+    fiber: 1.2,
+  ),
+  FoodItem(
+    id: 'cucumber',
+    name: 'Огурец',
+    kcal: 15,
+    protein: 0.7,
+    fat: 0.1,
+    carbs: 3.6,
+    fiber: 0.5,
+  ),
+  FoodItem(
+    id: 'broccoli',
+    name: 'Брокколи',
+    kcal: 34,
+    protein: 2.8,
+    fat: 0.4,
+    carbs: 6.6,
+    fiber: 2.6,
+  ),
+  FoodItem(
+    id: 'cauliflower',
+    name: 'Цветная капуста',
+    kcal: 25,
+    protein: 1.9,
+    fat: 0.3,
+    carbs: 5,
+    fiber: 2,
+  ),
+  FoodItem(
+    id: 'carrot',
+    name: 'Морковь',
+    kcal: 41,
+    protein: 0.9,
+    fat: 0.2,
+    carbs: 9.6,
+    fiber: 2.8,
+  ),
+  FoodItem(
+    id: 'mushroom',
+    name: 'Шампиньоны',
+    kcal: 22,
+    protein: 3.1,
+    fat: 0.3,
+    carbs: 3.3,
+    fiber: 1,
+  ),
+  FoodItem(
+    id: 'apple',
+    name: 'Яблоко',
+    kcal: 52,
+    protein: 0.3,
+    fat: 0.2,
+    carbs: 13.8,
+    fiber: 2.4,
+  ),
+  FoodItem(
+    id: 'banana',
+    name: 'Банан',
+    kcal: 89,
+    protein: 1.1,
+    fat: 0.3,
+    carbs: 22.8,
+    fiber: 2.6,
+  ),
+  FoodItem(
+    id: 'orange',
+    name: 'Апельсин',
+    kcal: 47,
+    protein: 0.9,
+    fat: 0.1,
+    carbs: 11.8,
+    fiber: 2.4,
+  ),
+  FoodItem(
+    id: 'peach',
+    name: 'Персик',
+    kcal: 39,
+    protein: 0.9,
+    fat: 0.3,
+    carbs: 9.5,
+    fiber: 1.5,
+  ),
+  FoodItem(
+    id: 'blackberry',
+    name: 'Ежевика',
+    kcal: 43,
+    protein: 1.4,
+    fat: 0.5,
+    carbs: 9.6,
+    fiber: 5.3,
+  ),
+  FoodItem(
+    id: 'blueberry',
+    name: 'Черника',
+    kcal: 57,
+    protein: 0.7,
+    fat: 0.3,
+    carbs: 14.5,
+    fiber: 2.4,
+  ),
+  FoodItem(
+    id: 'avocado',
+    name: 'Авокадо',
+    kcal: 160,
+    protein: 2,
+    fat: 14.7,
+    carbs: 8.5,
+    fiber: 6.7,
+  ),
+  FoodItem(
+    id: 'almonds',
+    name: 'Миндаль',
+    kcal: 579,
+    protein: 21.2,
+    fat: 49.9,
+    carbs: 21.6,
+    fiber: 12.5,
+  ),
+  FoodItem(
+    id: 'walnut',
+    name: 'Грецкий орех',
+    kcal: 654,
+    protein: 15.2,
+    fat: 65.2,
+    carbs: 13.7,
+    fiber: 6.7,
+  ),
+  FoodItem(
+    id: 'oil',
+    name: 'Оливковое масло',
+    kcal: 884,
+    protein: 0,
+    fat: 100,
+    carbs: 0,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'sour_cream',
+    name: 'Сметана 25%',
+    kcal: 248,
+    protein: 2.6,
+    fat: 25,
+    carbs: 3.2,
+    fiber: 0,
+  ),
+  FoodItem(
+    id: 'ketchup',
+    name: 'Кетчуп',
+    kcal: 110,
+    protein: 1.2,
+    fat: 0.2,
+    carbs: 25,
+    fiber: 0.7,
+  ),
 ];
 
 class FitLifeHome extends StatefulWidget {
-  const FitLifeHome({super.key});
+  const FitLifeHome({super.key, this.preferencesLoader});
+
+  final Future<SharedPreferences> Function()? preferencesLoader;
 
   @override
   State<FitLifeHome> createState() => _FitLifeHomeState();
 }
 
-class _FitLifeHomeState extends State<FitLifeHome> {
-  static const double kcalTarget = 1900;
-  static const double proteinTarget = 180;
-  static const double fatTarget = 65;
-  static const double fiberTarget = 30;
-
-  final ImagePicker picker = ImagePicker();
+class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
+  double kcalTarget = 1900;
+  double proteinTarget = 180;
+  double fatTarget = 65;
+  double fiberTarget = 30;
+  double get carbsTarget =>
+      ((kcalTarget - proteinTarget * 4 - fatTarget * 9) / 4)
+          .clamp(0, kcalTarget)
+          .toDouble();
 
   int tab = 0;
-  double water = 1.5;
+  double water = 0;
   double weight = 104.2;
   bool loading = true;
-  File? photo;
+  bool loadFailed = false;
+  int _loadAttempt = 0;
+  DateTime day = DateUtils.dateOnly(DateTime.now());
+  DateTime _lastToday = DateUtils.dateOnly(DateTime.now());
+  bool recoveredData = false;
+  late final _repository = DiaryRepository(
+    preferencesLoader: widget.preferencesLoader,
+  );
+  static const _writeTimeout = Duration(seconds: 15);
 
   List<DiaryItem> diary = [];
   List<FoodItem> customFoods = [];
@@ -213,69 +444,150 @@ class _FitLifeHomeState extends State<FitLifeHome> {
   }
 
   String get dayKey {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final diaryJson = prefs.getString('diary_$dayKey');
-    final foodsJson = prefs.getString('custom_foods');
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
-    if (!mounted) {
-      return;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final today = DateUtils.dateOnly(DateTime.now());
+    if (!DateUtils.isSameDay(today, _lastToday)) {
+      if (DateUtils.isSameDay(day, _lastToday)) {
+        setState(() {
+          day = today;
+          loading = true;
+        });
+        _load();
+      }
+      _lastToday = today;
+    }
+  }
+
+  Future<void> _load() async {
+    final key = dayKey;
+    final attempt = ++_loadAttempt;
+    setState(() {
+      loading = true;
+      loadFailed = false;
+    });
+    try {
+      final data = await _readSavedDay(
+        key,
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
+      final store = data.store;
+      setState(() {
+        water = store.number('water_$key', 0, allowZero: true);
+        weight = store.number('weight', 104.2);
+        kcalTarget = store.number('goal_calories', 1900);
+        proteinTarget = store.number('goal_protein', 180);
+        fatTarget = store.number('goal_fat', 65);
+        fiberTarget = store.number('goal_fiber', 30);
+        favorites = data.favorites;
+        recent = data.recent;
+        diary = data.diary;
+        customFoods = data.foods;
+        recoveredData = store.recoveredData;
+        loading = false;
+      });
+    } catch (error) {
+      // Do not open a writable empty diary when its real data could not be read.
+      debugPrint('FitLife storage initialization failed: ${error.runtimeType}');
+      if (!mounted || key != dayKey || attempt != _loadAttempt) return;
+      setState(() {
+        loading = false;
+        loadFailed = true;
+      });
+    }
+  }
+
+  Future<
+    ({
+      DiaryPreferences store,
+      List<DiaryItem> diary,
+      List<FoodItem> foods,
+      List<String> favorites,
+      List<String> recent,
+    })
+  >
+  _readSavedDay(String key) async {
+    final prefs =
+        await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
+    await prefs.reload();
+    final store = DiaryPreferences(prefs);
+    final savedDiary = await store.readRecords(
+      'diary_$key',
+      DiaryItem.fromJson,
+    );
+    final savedFoods = await store.readRecords(
+      'custom_foods',
+      FoodItem.fromJson,
+    );
+    final savedFavorites = await store.readStringList('favorites');
+    final savedRecent = await store.readStringList('recent');
+    if (!prefs.containsKey('water_migrated')) {
+      if (!prefs.containsKey('water_$key')) {
+        await store.writeNumber(
+          'water_$key',
+          store.number('water', 0, allowZero: true),
+        );
+      }
+      if (!await prefs.setBool('water_migrated', true)) {
+        throw StateError('Could not finish water migration');
+      }
     }
 
-    setState(() {
-      water = prefs.getDouble('water') ?? 1.5;
-      weight = prefs.getDouble('weight') ?? 104.2;
-      favorites = prefs.getStringList('favorites') ?? [];
-      recent = prefs.getStringList('recent') ?? [];
-      diary = diaryJson == null
-          ? []
-          : (jsonDecode(diaryJson) as List)
-              .map((item) => DiaryItem.fromJson(Map<String, dynamic>.from(item as Map)))
-              .toList();
-      customFoods = foodsJson == null
-          ? []
-          : (jsonDecode(foodsJson) as List)
-              .map((item) => FoodItem.fromJson(Map<String, dynamic>.from(item as Map)))
-              .toList();
-      loading = false;
-    });
-  }
-
-  Future<void> _saveDiary() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'diary_$dayKey',
-      jsonEncode(diary.map((item) => item.toJson()).toList()),
+    return (
+      store: store,
+      diary: savedDiary,
+      foods: savedFoods,
+      favorites: savedFavorites,
+      recent: savedRecent,
     );
   }
 
-  Future<void> _saveLists() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorites', favorites);
-    await prefs.setStringList('recent', recent);
-  }
-
-  Future<void> _saveFoods() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+  Future<void> _rememberFood(FoodItem food) => _repository.run((store) async {
+    final current = await store.readRecords('custom_foods', FoodItem.fromJson);
+    final updated = [...current.where((item) => item.id != food.id), food];
+    await store.writeString(
       'custom_foods',
-      jsonEncode(customFoods.map((item) => item.toJson()).toList()),
+      jsonEncode(updated.map((item) => item.toJson()).toList()),
+    );
+    if (mounted) setState(() => customFoods = updated);
+  });
+
+  void _showWriteError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Не удалось сохранить изменение. Проверьте запись и повторите попытку.',
+        ),
+      ),
     );
   }
 
-  Future<void> _setNumber(String key, double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(key, value);
+  Future<void> _acceptDiary(
+    DateTime targetDay,
+    Future<List<DiaryItem>> operation,
+  ) async {
+    final saved = await operation.timeout(_writeTimeout);
+    if (mounted && DateUtils.isSameDay(day, targetDay)) {
+      setState(() => diary = saved);
+    }
   }
 
   @override
@@ -283,6 +595,41 @@ class _FitLifeHomeState extends State<FitLifeHome> {
     if (loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(color: green)),
+      );
+    }
+    if (loadFailed) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.storage_rounded, size: 48, color: green),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Не удалось открыть дневник',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Локальное хранилище не ответило. Попробуйте ещё раз. '
+                    'Мы не удаляли ваши записи.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Повторить'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -294,30 +641,60 @@ class _FitLifeHomeState extends State<FitLifeHome> {
       _profilePage(),
     ];
 
-    return Scaffold(
-      body: SafeArea(child: IndexedStack(index: tab, children: pages)),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        backgroundColor: Colors.white,
-        indicatorColor: mint,
-        onDestinationSelected: (index) => setState(() => tab = index),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Сегодня'),
-          NavigationDestination(icon: Icon(Icons.restaurant_outlined), selectedIcon: Icon(Icons.restaurant), label: 'Питание'),
-          NavigationDestination(icon: Icon(Icons.camera_alt_outlined), selectedIcon: Icon(Icons.camera_alt), label: 'Камера'),
-          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights), label: 'Прогресс'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Профиль'),
-        ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      floatingActionButton: tab <= 1
-          ? FloatingActionButton.extended(
-              onPressed: _addFood,
-              backgroundColor: green,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Добавить еду'),
-            )
-          : null,
+      child: Scaffold(
+        body: SafeArea(
+          child: IndexedStack(index: tab, children: pages),
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: tab,
+          backgroundColor: Colors.white,
+          indicatorColor: mint,
+          onDestinationSelected: (index) => setState(() => tab = index),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Сегодня',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.restaurant_outlined),
+              selectedIcon: Icon(Icons.restaurant),
+              label: 'Питание',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.camera_alt_outlined),
+              selectedIcon: Icon(Icons.camera_alt),
+              label: 'Камера',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.insights_outlined),
+              selectedIcon: Icon(Icons.insights),
+              label: 'Прогресс',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Профиль',
+            ),
+          ],
+        ),
+        floatingActionButton: tab <= 1
+            ? FloatingActionButton.extended(
+                onPressed: _addFood,
+                backgroundColor: green,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.add),
+                label: const Text('Добавить еду'),
+              )
+            : null,
+      ),
     );
   }
 
@@ -325,7 +702,15 @@ class _FitLifeHomeState extends State<FitLifeHome> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: ink)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+            color: ink,
+          ),
+        ),
+        const SizedBox(height: 6),
         Text(subtitle, style: const TextStyle(color: muted)),
       ],
     );
@@ -343,36 +728,129 @@ class _FitLifeHomeState extends State<FitLifeHome> {
     );
   }
 
-  Widget _darkCard(Widget child) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: ink,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: child,
-    );
-  }
-
   Widget _todayPage() {
     return ListView(
+      key: const PageStorageKey('today'),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
       children: [
-        _header('Сегодня', _dateLabel()),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: mint,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.spa_outlined, color: greenDark, size: 23),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'FITLIFE',
+                style: TextStyle(
+                  fontSize: 13,
+                  letterSpacing: 2.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            IconButton.filledTonal(
+              tooltip: 'База продуктов',
+              onPressed: _openCatalog,
+              icon: const Icon(Icons.manage_search_outlined),
+            ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        const Text(
+          'Твой день,\nв балансе.',
+          style: TextStyle(
+            fontSize: 34,
+            height: 1.15,
+            letterSpacing: -1.3,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _chooseDay,
+            icon: const Icon(Icons.calendar_today_outlined, size: 16),
+            label: Text(_dateLabel()),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _quickMealActions(),
+        const SizedBox(height: 16),
+        DayNutritionSummary(calories: calories, target: kcalTarget),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            MacroProgress(
+              title: 'Белки',
+              value: protein,
+              target: proteinTarget,
+              color: green,
+            ),
+            const SizedBox(width: 8),
+            MacroProgress(
+              title: 'Жиры',
+              value: fat,
+              target: fatTarget,
+              color: gold,
+            ),
+            const SizedBox(width: 8),
+            MacroProgress(
+              title: 'Углеводы',
+              value: carbs,
+              target: carbsTarget,
+              color: coral,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            _statCard(
+              'Вода',
+              '${water.toStringAsFixed(2)} л',
+              Icons.water_drop_outlined,
+              _addWater,
+            ),
+            const SizedBox(width: 8),
+            _statCard(
+              'Вес',
+              '${weight.toStringAsFixed(1)} кг',
+              Icons.monitor_weight_outlined,
+              _addWeight,
+            ),
+          ],
+        ),
         const SizedBox(height: 14),
         _card(
           Row(
             children: [
-              const Text('🐼', style: TextStyle(fontSize: 50)),
+              const CompanionAvatar(),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Твой помощник', style: TextStyle(color: muted)),
+                    const Text(
+                      'Твой помощник',
+                      style: TextStyle(color: muted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 3),
                     Text(
-                      diary.isEmpty ? 'Панда ждёт первый приём пищи 💚' : 'Панда поддерживает твой ритм 💚',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: ink),
+                      diary.isEmpty
+                          ? 'Начнём с первого приёма пищи?'
+                          : 'Каждая запись помогает видеть баланс.',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -380,88 +858,31 @@ class _FitLifeHomeState extends State<FitLifeHome> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        _darkCard(
-          Row(
-            children: [
-              SizedBox(
-                width: 105,
-                height: 105,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: (calories / kcalTarget).clamp(0, 1).toDouble(),
-                      color: const Color(0xFF7BE0A8),
-                      backgroundColor: const Color(0x334A5A50),
-                      strokeWidth: 10,
-                    ),
-                    Text(
-                      '${caloriesLeft.round()}',
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Дневная цель', style: TextStyle(color: Colors.white60)),
-                    Text(
-                      '${calories.round()} / ${kcalTarget.round()} ккал',
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900),
-                    ),
-                    Text(
-                      'Белок ${protein.round()} г · Клетчатка ${fiber.round()} г',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        if (recoveredData) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Часть записей повреждена. Доступные записи восстановлены, исходные данные сохранены для восстановления.',
+            style: TextStyle(color: muted, fontSize: 12),
           ),
-        ),
-        const SizedBox(height: 12),
-        _card(
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Макросы', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ink)),
-                  Text('Б ${protein.round()} · Ж ${fat.round()} · У ${carbs.round()}', style: const TextStyle(color: muted)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _metricBar('Белок', protein, proteinTarget),
-                  const SizedBox(width: 8),
-                  _metricBar('Жиры', fat, fatTarget),
-                  const SizedBox(width: 8),
-                  _metricBar('Клетчатка', fiber, fiberTarget),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+        ],
+        const SizedBox(height: 14),
+        _nextAction(),
+        const SizedBox(height: 24),
         Row(
           children: [
-            _statCard('Вода', '${water.toStringAsFixed(1)} л', Icons.water_drop_outlined, _addWater),
-            const SizedBox(width: 8),
-            _statCard('Вес', '${weight.toStringAsFixed(1)} кг', Icons.monitor_weight_outlined, _addWeight),
-            const SizedBox(width: 8),
-            _statCard('Приёмов', '${diary.length}', Icons.restaurant_outlined, null),
+            const Expanded(
+              child: Text(
+                'Дневник питания',
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '${diary.length} записей',
+              style: const TextStyle(color: muted, fontSize: 11),
+            ),
           ],
         ),
-        const SizedBox(height: 18),
-        _nextAction(),
-        const SizedBox(height: 18),
-        const Text('Дневник', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: ink)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (diary.isEmpty) _emptyCard() else ..._mealCards(),
       ],
     );
@@ -472,12 +893,21 @@ class _FitLifeHomeState extends State<FitLifeHome> {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
       children: [
         _header('Питание', 'Поиск, избранное и последние продукты'),
+        const SizedBox(height: 14),
+        _quickMealActions(),
         const SizedBox(height: 12),
         _card(
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${calories.round()} ккал', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: ink)),
+              Text(
+                '${calories.round()} ккал',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: ink,
+                ),
+              ),
               Text(
                 'Осталось ${caloriesLeft.round()} ккал · Б ${protein.round()} г · Ж ${fat.round()} г · Кл ${fiber.round()} г',
                 style: const TextStyle(color: muted),
@@ -505,6 +935,12 @@ class _FitLifeHomeState extends State<FitLifeHome> {
           icon: const Icon(Icons.search),
           label: const Text('Поиск продукта'),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _openCatalog,
+          icon: const Icon(Icons.manage_search_outlined),
+          label: const Text('Расширенный состав продуктов'),
+        ),
         const SizedBox(height: 14),
         if (diary.isNotEmpty) ..._mealCards(),
       ],
@@ -512,72 +948,116 @@ class _FitLifeHomeState extends State<FitLifeHome> {
   }
 
   Widget _cameraPage() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+    return PhotoPage(
+      day: day,
+      meal: _suggestedMeal(),
+      onManual: _addFood,
+      onSave: _savePhotoMeal,
+    );
+  }
+
+  Widget _quickMealActions() => _card(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _header('Камера', 'Фото блюда → подтверждение'),
-        const SizedBox(height: 14),
-        _card(
-          Column(
-            children: [
-              if (photo != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Image.file(photo!, height: 240, width: double.infinity, fit: BoxFit.cover),
-                )
-              else
-                const Padding(
-                  padding: EdgeInsets.all(18),
-                  child: Icon(Icons.photo_camera_back_outlined, size: 80, color: greenDark),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => _pickPhoto(ImageSource.camera),
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Камера'),
-                      style: FilledButton.styleFrom(backgroundColor: green),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _pickPhoto(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library),
-                      label: const Text('Галерея'),
-                    ),
-                  ),
-                ],
-              ),
-              if (photo != null) ...[
-                const SizedBox(height: 14),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Следующий шаг', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
-                ),
-                const SizedBox(height: 6),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Фото уже можно использовать для ручного подтверждения. Облачное AI-распознавание подключается отдельным модулем.',
-                    style: TextStyle(color: muted),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: _addFood,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Подтвердить и выбрать продукты'),
-                  style: FilledButton.styleFrom(backgroundColor: green, minimumSize: const Size.fromHeight(50)),
-                ),
-              ],
-            ],
+        const Text(
+          'БЫСТРАЯ ЗАПИСЬ',
+          style: TextStyle(
+            fontSize: 10,
+            color: muted,
+            letterSpacing: 1.4,
+            fontWeight: FontWeight.w700,
           ),
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _entryAction(
+              'Описать еду',
+              Icons.edit_note_rounded,
+              _describeMeal,
+              'quick-text',
+            ),
+            const SizedBox(width: 8),
+            _entryAction(
+              'Фото блюда',
+              Icons.photo_camera_outlined,
+              () => setState(() => tab = 2),
+              'quick-photo',
+            ),
+            const SizedBox(width: 8),
+            _entryAction(
+              'Найти продукт',
+              Icons.search,
+              _addFood,
+              'quick-search',
+            ),
+          ],
+        ),
       ],
+    ),
+  );
+
+  Widget _entryAction(
+    String label,
+    IconData icon,
+    VoidCallback action,
+    String key,
+  ) => Expanded(
+    child: InkWell(
+      key: Key(key),
+      onTap: action,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        decoration: BoxDecoration(
+          color: mint.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: greenDark),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _describeMeal() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TextMealPage(
+          day: day,
+          meal: _suggestedMeal(),
+          onSave: _savePhotoMeal,
+        ),
+      ),
     );
+  }
+
+  Future<void> _showWeeklyReport() async {
+    final selected = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute(
+        builder: (_) => WeeklySummaryPage(
+          end: day,
+          preferencesLoader: widget.preferencesLoader,
+        ),
+      ),
+    );
+    if (!mounted || selected == null || DateUtils.isSameDay(selected, day)) {
+      return;
+    }
+    setState(() {
+      day = selected;
+      tab = 0;
+    });
+    await _load();
   }
 
   Widget _progressPage() {
@@ -586,32 +1066,64 @@ class _FitLifeHomeState extends State<FitLifeHome> {
       children: [
         _header('Прогресс', 'Устойчивость важнее идеального дня'),
         const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: _showWeeklyReport,
+          icon: const Icon(Icons.calendar_view_week_outlined),
+          label: const Text('Обзор 7 дней'),
+        ),
+        const SizedBox(height: 14),
         _card(
           Column(
             children: [
-              _progressLine('Калории', calories / kcalTarget, '${calories.round()} / ${kcalTarget.round()} ккал'),
+              _progressLine(
+                'Калории',
+                calories / kcalTarget,
+                '${calories.round()} / ${kcalTarget.round()} ккал',
+              ),
               const SizedBox(height: 14),
-              _progressLine('Белок', protein / proteinTarget, '${protein.round()} / ${proteinTarget.round()} г'),
+              _progressLine(
+                'Белок',
+                protein / proteinTarget,
+                '${protein.round()} / ${proteinTarget.round()} г',
+              ),
               const SizedBox(height: 14),
-              _progressLine('Жиры', fat / fatTarget, '${fat.round()} / ${fatTarget.round()} г'),
+              _progressLine(
+                'Жиры',
+                fat / fatTarget,
+                '${fat.round()} / ${fatTarget.round()} г',
+              ),
               const SizedBox(height: 14),
-              _progressLine('Клетчатка', fiber / fiberTarget, '${fiber.round()} / ${fiberTarget.round()} г'),
+              _progressLine(
+                'Клетчатка',
+                fiber / fiberTarget,
+                '${fiber.round()} / ${fiberTarget.round()} г',
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         _card(
-          Row(
+          const Row(
             children: [
-              const Text('🐼', style: TextStyle(fontSize: 46)),
-              const SizedBox(width: 12),
+              CompanionAvatar(),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Панда растёт вместе с привычками', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: ink)),
+                  children: [
+                    Text(
+                      'Панда растёт вместе с привычками',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        color: ink,
+                      ),
+                    ),
                     SizedBox(height: 4),
-                    Text('Сейчас важнее регулярность, чем идеальный результат за один день.', style: TextStyle(color: muted)),
+                    Text(
+                      'Сейчас важнее регулярность, чем идеальный результат за один день.',
+                      style: TextStyle(color: muted),
+                    ),
                   ],
                 ),
               ),
@@ -632,22 +1144,47 @@ class _FitLifeHomeState extends State<FitLifeHome> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Текущие настройки', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
+              const Text(
+                'Текущие настройки',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: ink,
+                ),
+              ),
               const SizedBox(height: 12),
               _profileRow('Вес', '${weight.toStringAsFixed(1)} кг'),
               _profileRow('Цель по калориям', '${kcalTarget.round()} ккал'),
               _profileRow('Белок', '${proteinTarget.round()} г'),
               _profileRow('Жиры', '${fatTarget.round()} г'),
               _profileRow('Клетчатка', '${fiberTarget.round()} г'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _editGoals,
+                icon: const Icon(Icons.tune),
+                label: const Text('Настроить цели'),
+              ),
+              TextButton.icon(
+                onPressed: _addWeight,
+                icon: const Icon(Icons.monitor_weight_outlined),
+                label: const Text('Обновить вес'),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         _card(
           const Text(
-            'Медицинские данные и AI-анализ лабораторных PDF/фото будут добавлены отдельным безопасным модулем. Приложение не ставит диагнозы и не заменяет врача.',
+            'Твой дневник хранится на этом устройстве и работает без интернета. Анализ фото использует интернет и общий сервер; отправка только с твоего согласия.',
             style: TextStyle(color: muted),
           ),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(builder: (_) => const PhotoSettingsPage()),
+          ),
+          icon: const Icon(Icons.cloud_outlined),
+          label: const Text('Распознавание по фото'),
         ),
       ],
     );
@@ -659,8 +1196,14 @@ class _FitLifeHomeState extends State<FitLifeHome> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(name, style: const TextStyle(color: muted)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
+          Expanded(
+            child: Text(name, style: const TextStyle(color: muted)),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
+          ),
         ],
       ),
     );
@@ -671,37 +1214,34 @@ class _FitLifeHomeState extends State<FitLifeHome> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          runSpacing: 4,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ink)),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
+            ),
             Text(label, style: const TextStyle(color: muted)),
           ],
         ),
         const SizedBox(height: 6),
-        LinearProgressIndicator(value: safeValue, minHeight: 8, borderRadius: BorderRadius.circular(8)),
+        LinearProgressIndicator(
+          value: safeValue,
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(8),
+        ),
       ],
     );
   }
 
-  Widget _metricBar(String title, double value, double target) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, color: muted)),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: (value / target).clamp(0, 1).toDouble(),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statCard(String title, String value, IconData icon, VoidCallback? onTap) {
+  Widget _statCard(
+    String title,
+    String value,
+    IconData icon,
+    VoidCallback? onTap,
+  ) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -711,7 +1251,10 @@ class _FitLifeHomeState extends State<FitLifeHome> {
             children: [
               Icon(icon, color: greenDark),
               const SizedBox(height: 4),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w900, color: ink)),
+              Text(
+                value,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: ink),
+              ),
               Text(title, style: const TextStyle(fontSize: 12, color: muted)),
             ],
           ),
@@ -737,7 +1280,12 @@ class _FitLifeHomeState extends State<FitLifeHome> {
         children: [
           const Icon(Icons.flag_outlined, color: greenDark),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800, color: ink))),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
+            ),
+          ),
         ],
       ),
     );
@@ -747,7 +1295,10 @@ class _FitLifeHomeState extends State<FitLifeHome> {
     return _card(
       const Padding(
         padding: EdgeInsets.all(16),
-        child: Text('Здесь появятся продукты и приёмы пищи.', style: TextStyle(color: muted)),
+        child: Text(
+          'Здесь появятся продукты и приёмы пищи.',
+          style: TextStyle(color: muted),
+        ),
       ),
     );
   }
@@ -755,7 +1306,14 @@ class _FitLifeHomeState extends State<FitLifeHome> {
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 6),
-      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: ink)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+          color: ink,
+        ),
+      ),
     );
   }
 
@@ -801,17 +1359,36 @@ class _FitLifeHomeState extends State<FitLifeHome> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(meal, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: ink)),
+            Text(
+              meal,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: ink,
+              ),
+            ),
             const SizedBox(height: 8),
-            ...items.map((item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.food.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: () => _editDiaryItem(item),
-                  ),
-                )),
+            ...items.map(
+              (item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  item.food.name,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(
+                  '${item.food.isTextEstimate
+                      ? 'AI-оценка по описанию · '
+                      : item.food.isPhotoEstimate
+                      ? 'Оценка по фото · '
+                      : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
+                ),
+                trailing: IconButton(
+                  tooltip: 'Изменить порцию',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _editDiaryItem(item),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -828,301 +1405,566 @@ class _FitLifeHomeState extends State<FitLifeHome> {
   }
 
   String _dateLabel() {
-    final now = DateTime.now();
-    return '${now.day}.${now.month}.${now.year}';
+    const months = [
+      'января',
+      'февраля',
+      'марта',
+      'апреля',
+      'мая',
+      'июня',
+      'июля',
+      'августа',
+      'сентября',
+      'октября',
+      'ноября',
+      'декабря',
+    ];
+    final date = '${day.day} ${months[day.month - 1]} ${day.year}';
+    return DateUtils.isSameDay(day, DateTime.now()) ? 'Сегодня, $date' : date;
   }
 
-  Future<void> _pickPhoto(ImageSource source) async {
-    final result = await picker.pickImage(source: source, imageQuality: 88);
-    if (result != null) {
-      setState(() => photo = File(result.path));
-    }
+  Future<void> _chooseDay() async {
+    final result = await showDatePicker(
+      context: context,
+      initialDate: day,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      helpText: 'День дневника',
+      cancelText: 'Отмена',
+      confirmText: 'Выбрать',
+    );
+    if (!mounted || result == null || DateUtils.isSameDay(day, result)) return;
+    setState(() {
+      day = result;
+      loading = true;
+    });
+    await _load();
+  }
+
+  String _suggestedMeal() {
+    final hour = DateTime.now().hour;
+    if (hour < 11) return 'Завтрак';
+    if (hour < 16) return 'Обед';
+    if (hour < 21) return 'Ужин';
+    return 'Перекус';
+  }
+
+  Future<void> _openCatalog() async {
+    final targetDay = day;
+    final entries = diary
+        .map(
+          (entry) => NutritionDayEntry(
+            food: NutritionFoodRecord(
+              id: entry.food.id,
+              name: entry.food.name,
+              source: '',
+              sourceUrl: '',
+              profile: entry.food.profile,
+            ),
+            grams: entry.grams,
+          ),
+        )
+        .toList();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => NutritionCatalogPage(
+          initialDay: NutritionDay(entries: entries),
+          dayLabel: _dateLabel(),
+          onAdd: (entry, id) async {
+            if (!mounted) return;
+            final record = entry.food;
+            final p = record.profile;
+            final food = FoodItem(
+              id: 'catalog_${record.id}',
+              name: record.name,
+              kcal: p.kcal,
+              protein: p.protein,
+              fat: p.fat,
+              carbs: p.carbs,
+              fiber: p.fiber,
+              nutrition: p,
+            );
+            final item = DiaryItem(
+              id: id,
+              meal: _suggestedMeal(),
+              food: food,
+              grams: entry.grams,
+              time: TimeOfDay.now().format(context),
+            );
+            await _rememberFood(food).timeout(_writeTimeout);
+            await _acceptDiary(targetDay, _repository.upsert(targetDay, item));
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _savePhotoMeal(PhotoMeal meal) async {
+    await _acceptDiary(
+      meal.day,
+      savePhotoMeal(meal, preferencesLoader: widget.preferencesLoader),
+    );
   }
 
   Future<void> _addFood({FoodItem? preselected}) async {
-    FoodItem? selected = preselected;
-    String meal = 'Ужин';
-    String query = '';
-    final gramsController = TextEditingController(text: '100');
-
+    final targetDay = day;
+    final entryId = 'manual_${newDiaryEntryId()}';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: bg,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, updateSheet) {
-            final filtered = foods
-                .where((food) => food.name.toLowerCase().contains(query.toLowerCase()))
-                .take(60)
-                .toList();
-
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                14,
-                20,
-                MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 42, height: 4, color: line),
-                  const SizedBox(height: 12),
-                  const Text('Добавить продукт', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900, color: ink)),
-                  const SizedBox(height: 10),
-                  TextField(
-                    decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Поиск продукта'),
-                    onChanged: (value) => updateSheet(() => query = value),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: 230,
-                    child: ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final food = filtered[index];
-                        return ListTile(
-                          selected: selected?.id == food.id,
-                          selectedTileColor: mint,
-                          title: Text(food.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                          subtitle: Text('${food.kcal.round()} ккал · Б ${food.protein} · Кл ${food.fiber} / 100 г'),
-                          trailing: IconButton(
-                            icon: Icon(favorites.contains(food.id) ? Icons.star : Icons.star_border),
-                            onPressed: () {
-                              setState(() {
-                                if (favorites.contains(food.id)) {
-                                  favorites.remove(food.id);
-                                } else {
-                                  favorites.add(food.id);
-                                }
-                              });
-                              _saveLists();
-                              updateSheet(() {});
-                            },
-                          ),
-                          onTap: () => updateSheet(() => selected = food),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: gramsController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Граммы'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: meal,
-                          items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
-                              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                              .toList(),
-                          onChanged: (value) => updateSheet(() => meal = value ?? meal),
-                          decoration: const InputDecoration(labelText: 'Приём'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  FilledButton.icon(
-                    onPressed: selected == null
-                        ? null
-                        : () {
-                            final grams = double.tryParse(gramsController.text.replaceAll(',', '.')) ?? 100;
-                            if (grams <= 0) {
-                              return;
-                            }
-                            final food = selected!;
-                            setState(() {
-                              diary.add(
-                                DiaryItem(
-                                  id: DateTime.now().microsecondsSinceEpoch.toString(),
-                                  meal: meal,
-                                  food: food,
-                                  grams: grams,
-                                  time: TimeOfDay.now().format(context),
-                                ),
-                              );
-                              recent = [food.id, ...recent.where((id) => id != food.id)].take(10).toList();
-                            });
-                            _saveDiary();
-                            _saveLists();
-                            Navigator.pop(sheetContext);
-                          },
-                    icon: const Icon(Icons.check),
-                    label: const Text('Добавить'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: green,
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      useSafeArea: true,
+      builder: (_) => _FoodEntrySheet(
+        foods: foods,
+        favorites: favorites,
+        preselected: preselected,
+        initialMeal: _suggestedMeal(),
+        onFavorite: (food) async {
+          final updated = await _repository
+              .run((store) async {
+                final values = await store.readStringList('favorites');
+                if (values.contains(food.id)) {
+                  values.remove(food.id);
+                } else {
+                  values.add(food.id);
+                }
+                await store.writeList('favorites', values);
+                return values;
+              })
+              .timeout(_writeTimeout);
+          if (mounted) {
+            setState(() {
+              favorites
+                ..clear()
+                ..addAll(updated);
+            });
+          }
+        },
+        onAdd: (food, grams, meal) async {
+          final item = DiaryItem(
+            id: entryId,
+            meal: meal,
+            food: food,
+            grams: grams,
+            time: TimeOfDay.now().format(context),
+          );
+          await _acceptDiary(targetDay, _repository.upsert(targetDay, item));
+          final updated = await _repository
+              .run((store) async {
+                final current = await store.readStringList('recent');
+                final values = [
+                  food.id,
+                  ...current.where((id) => id != food.id),
+                ].take(10).toList();
+                await store.writeList('recent', values);
+                return values;
+              })
+              .timeout(_writeTimeout);
+          if (mounted) setState(() => recent = updated);
+        },
+      ),
     );
-    gramsController.dispose();
   }
 
   Future<void> _editDiaryItem(DiaryItem item) async {
-    final controller = TextEditingController(text: item.grams.toStringAsFixed(0));
-    final result = await showDialog<String>(
+    final targetDay = day;
+    await showDialog<ValueEditResult>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(item.food.name),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Граммы'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, 'delete'),
-              child: const Text('Удалить', style: TextStyle(color: Colors.red)),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, 'save'),
-              child: const Text('Сохранить'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => ValueEditorDialog(
+        title: item.food.name,
+        allowDelete: true,
+        fields: [NumberFieldSpec('Граммы', item.grams, min: 0.1)],
+        onSave: (result) => _acceptDiary(
+          targetDay,
+          _repository.updateDay(targetDay, (current) {
+            final index = current.indexWhere((entry) => entry.id == item.id);
+            if (index < 0) throw StateError('Entry no longer exists');
+            if (result.deleted) {
+              current.removeAt(index);
+            } else {
+              final saved = current[index];
+              current[index] = DiaryItem(
+                id: saved.id,
+                meal: saved.meal,
+                food: saved.food,
+                grams: result.values.first,
+                time: saved.time,
+              );
+            }
+            return current;
+          }),
+        ),
+      ),
     );
-
-    if (result == 'delete') {
-      setState(() => diary.removeWhere((entry) => entry.id == item.id));
-      await _saveDiary();
-    } else if (result == 'save') {
-      final grams = double.tryParse(controller.text.replaceAll(',', '.'));
-      if (grams == null || grams <= 0) {
-        return;
-      }
-      final index = diary.indexWhere((entry) => entry.id == item.id);
-      if (index < 0) {
-        return;
-      }
-      setState(() {
-        diary[index] = DiaryItem(
-          id: item.id,
-          meal: item.meal,
-          food: item.food,
-          grams: grams,
-          time: item.time,
-        );
-      });
-      await _saveDiary();
-    }
-    controller.dispose();
   }
 
   Future<void> _addCustomFood() async {
-    final name = TextEditingController();
-    final kcal = TextEditingController();
-    final protein = TextEditingController();
-    final fat = TextEditingController();
-    final carbs = TextEditingController();
-    final fiber = TextEditingController();
-
-    final ok = await showDialog<bool>(
+    final id = 'custom_${newDiaryEntryId()}';
+    final result = await showDialog<ValueEditResult>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Свой продукт'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Название')),
-                TextField(controller: kcal, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Ккал / 100 г')),
-                TextField(controller: protein, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Белок / 100 г')),
-                TextField(controller: fat, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Жиры / 100 г')),
-                TextField(controller: carbs, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Углеводы / 100 г')),
-                TextField(controller: fiber, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Клетчатка / 100 г')),
-              ],
+      builder: (_) => ValueEditorDialog(
+        title: 'Свой продукт',
+        initialName: '',
+        fields: const [
+          NumberFieldSpec('Ккал / 100 г', 0),
+          NumberFieldSpec('Белок / 100 г', 0, max: 100),
+          NumberFieldSpec('Жиры / 100 г', 0, max: 100),
+          NumberFieldSpec('Углеводы / 100 г', 0, max: 100),
+          NumberFieldSpec('Клетчатка / 100 г', 0, max: 100),
+        ],
+        onSave: (result) async {
+          final v = result.values;
+          await _rememberFood(
+            FoodItem(
+              id: id,
+              name: result.name!,
+              kcal: v[0],
+              protein: v[1],
+              fat: v[2],
+              carbs: v[3],
+              fiber: v[4],
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Отмена')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Сохранить')),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
-
-    if (ok != true || name.text.trim().isEmpty) {
-      _disposeControllers([name, kcal, protein, fat, carbs, fiber]);
-      return;
-    }
-
-    setState(() {
-      customFoods.add(
-        FoodItem(
-          id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
-          name: name.text.trim(),
-          kcal: _parse(kcal.text),
-          protein: _parse(protein.text),
-          fat: _parse(fat.text),
-          carbs: _parse(carbs.text),
-          fiber: _parse(fiber.text),
-        ),
-      );
-    });
-
-    await _saveFoods();
-    _disposeControllers([name, kcal, protein, fat, carbs, fiber]);
+    if (!mounted || result == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Продукт сохранён и доступен в поиске')),
+    );
   }
 
-  double _parse(String value) {
-    return double.tryParse(value.replaceAll(',', '.')) ?? 0;
-  }
-
-  void _disposeControllers(List<TextEditingController> controllers) {
-    for (final controller in controllers) {
-      controller.dispose();
-    }
+  Future<void> _editGoals() async {
+    await showDialog<ValueEditResult>(
+      context: context,
+      builder: (_) => ValueEditorDialog(
+        title: 'Цели питания',
+        fields: [
+          NumberFieldSpec('Калории, ккал', kcalTarget, min: 1),
+          NumberFieldSpec('Белок, г', proteinTarget, min: 1, max: 1000),
+          NumberFieldSpec('Жиры, г', fatTarget, min: 1, max: 1000),
+          NumberFieldSpec('Клетчатка, г', fiberTarget, min: 1, max: 1000),
+        ],
+        validate: (v) => v[1] * 4 + v[2] * 9 > v[0]
+            ? 'Калории из белков и жиров превышают дневную цель.'
+            : null,
+        onSave: (result) async {
+          final v = result.values;
+          await _repository.run((store) async {
+            await store.writeNumber('goal_calories', v[0]);
+            await store.writeNumber('goal_protein', v[1]);
+            await store.writeNumber('goal_fat', v[2]);
+            await store.writeNumber('goal_fiber', v[3]);
+          });
+          if (mounted) {
+            setState(() {
+              kcalTarget = v[0];
+              proteinTarget = v[1];
+              fatTarget = v[2];
+              fiberTarget = v[3];
+            });
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _addWater() async {
-    final next = water + 0.25;
-    setState(() => water = next);
-    await _setNumber('water', next);
+    final key = 'water_$dayKey';
+    try {
+      final next = await _repository
+          .run((store) async {
+            final value = store.number(key, 0, allowZero: true) + 0.25;
+            await store.writeNumber(key, value);
+            return value;
+          })
+          .timeout(_writeTimeout);
+      if (mounted && key == 'water_$dayKey') setState(() => water = next);
+    } catch (_) {
+      _showWriteError();
+    }
   }
 
   Future<void> _addWeight() async {
-    final controller = TextEditingController(text: weight.toStringAsFixed(1));
-    final ok = await showDialog<bool>(
+    await showDialog<ValueEditResult>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Вес'),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(suffixText: 'кг'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Отмена')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Сохранить')),
-          ],
-        );
-      },
+      builder: (_) => ValueEditorDialog(
+        title: 'Вес',
+        fields: [NumberFieldSpec('Вес, кг', weight, min: 30, max: 300)],
+        onSave: (result) async {
+          final value = result.values.first;
+          await _repository.run((store) => store.writeNumber('weight', value));
+          if (mounted) setState(() => weight = value);
+        },
+      ),
     );
+  }
+}
 
-    if (ok == true) {
-      final value = _parse(controller.text);
-      if (value >= 30 && value <= 300) {
-        setState(() => weight = value);
-        await _setNumber('weight', value);
-      }
+class _FoodEntrySheet extends StatefulWidget {
+  const _FoodEntrySheet({
+    required this.foods,
+    required this.favorites,
+    required this.initialMeal,
+    required this.onFavorite,
+    required this.onAdd,
+    this.preselected,
+  });
+
+  final List<FoodItem> foods;
+  final List<String> favorites;
+  final FoodItem? preselected;
+  final String initialMeal;
+  final Future<void> Function(FoodItem) onFavorite;
+  final Future<void> Function(FoodItem, double, String) onAdd;
+
+  @override
+  State<_FoodEntrySheet> createState() => _FoodEntrySheetState();
+}
+
+class _FoodEntrySheetState extends State<_FoodEntrySheet> {
+  final _grams = TextEditingController(text: '100');
+  late FoodItem? _selected = widget.preselected;
+  late String _meal = widget.initialMeal;
+  String _query = '';
+  String? _error;
+  bool _saving = false;
+  bool _favoriteSaving = false;
+  String? _saveError;
+
+  @override
+  void dispose() {
+    _grams.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add() async {
+    final grams = double.tryParse(_grams.text.trim().replaceAll(',', '.'));
+    if (grams == null || !grams.isFinite || grams <= 0 || grams > 10000) {
+      setState(() => _error = 'Введи порцию от 0 до 10 000 г');
+      return;
     }
-    controller.dispose();
+    if (_selected == null || _saving) return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await widget
+          .onAdd(_selected!, grams, _meal)
+          .timeout(const Duration(seconds: 15));
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _saveError =
+              'Не удалось завершить сохранение. Порция осталась здесь; повторная попытка не создаст дубль.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.foods
+        .where(
+          (food) => food.name
+              .toLowerCase()
+              .replaceAll('ё', 'е')
+              .contains(_query.trim().toLowerCase().replaceAll('ё', 'е')),
+        )
+        .toList();
+    return PopScope(
+      canPop: !_saving,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: line,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Что было на тарелке?',
+              style: TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Выбери продукт и укажи свою порцию',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Поиск продукта',
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: (MediaQuery.sizeOf(context).height * 0.25).clamp(
+                100.0,
+                230.0,
+              ),
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Ничего не найдено. Можно создать свой продукт.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final food = filtered[index];
+                        final favorite = widget.favorites.contains(food.id);
+                        return ListTile(
+                          selected: _selected?.id == food.id,
+                          selectedTileColor: mint,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          leading: Icon(
+                            _selected?.id == food.id
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: _selected?.id == food.id ? green : muted,
+                            size: 22,
+                          ),
+                          title: Text(
+                            food.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${food.kcal.round()} ккал на 100 г',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: IconButton(
+                            tooltip: favorite
+                                ? 'Убрать из избранного'
+                                : 'В избранное',
+                            icon: Icon(
+                              favorite
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                              color: gold,
+                            ),
+                            onPressed: _favoriteSaving || _saving
+                                ? null
+                                : () async {
+                                    setState(() => _favoriteSaving = true);
+                                    try {
+                                      await widget.onFavorite(food);
+                                    } catch (_) {
+                                      if (mounted) {
+                                        setState(
+                                          () => _saveError =
+                                              'Не удалось изменить избранное. Повторите попытку.',
+                                        );
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _favoriteSaving = false);
+                                      }
+                                    }
+                                  },
+                          ),
+                          onTap: () => setState(() => _selected = food),
+                        );
+                      },
+                    ),
+            ),
+            if (_selected != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'Выбрано: ${_selected!.name}',
+                  style: const TextStyle(
+                    color: greenDark,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _grams,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Граммы',
+                      errorText: _error,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _meal,
+                    isExpanded: true,
+                    items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item, overflow: TextOverflow.ellipsis),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _meal = value ?? _meal),
+                    decoration: const InputDecoration(labelText: 'Приём пищи'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (_saveError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _saveError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            FilledButton.icon(
+              onPressed: _selected == null || _saving ? null : _add,
+              icon: const Icon(Icons.add),
+              label: Text(_saving ? 'Сохраняем...' : 'Добавить'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
