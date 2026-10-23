@@ -34,6 +34,7 @@ class ReleaseSmoke:
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
         self.screen = ""
+        self.launcher_dismissals = 0
 
     def adb(self, *args, binary=False):
         result = subprocess.run(
@@ -58,10 +59,31 @@ class ReleaseSmoke:
         deadline = time.monotonic() + 35
         while time.monotonic() < deadline:
             nodes = self.read_screen()
+            if self.dismiss_emulator_launcher_anr(nodes):
+                continue
             if all(any(label in self.label(n) for n in nodes) for label in labels):
                 return nodes
             time.sleep(1)
         raise AssertionError(f"Release screen did not show {labels!r} within 35s")
+
+    def dismiss_emulator_launcher_anr(self, nodes):
+        # A fresh overloaded CI image can show a launcher ANR over the running app.
+        # Never dismiss FitLife/unknown ANRs or disable Android's ANR reporting.
+        title = next((n for n in nodes if n.get("package") == "android"
+                      and n.get("resource-id") == "android:id/alertTitle"), None)
+        if title is None or title.get("text") != "Pixel Launcher isn't responding":
+            return False
+        if self.launcher_dismissals:
+            raise AssertionError("Repeated Pixel Launcher ANR: emulator is unhealthy")
+        close = next((n for n in nodes if n.get("package") == "android"
+                      and n.get("resource-id") == "android:id/aerr_close"), None)
+        if close is None:
+            raise AssertionError("Launcher ANR has no verified close button")
+        self.capture("emulator-launcher-anr")
+        self.launcher_dismissals += 1
+        self.tap_node(close)
+        print("Recorded and closed one Pixel Launcher ANR; FitLife checks remain required")
+        return True
 
     def tap(self, label):
         nodes = self.wait_for(label)
