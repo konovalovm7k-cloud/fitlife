@@ -33,8 +33,11 @@ class DiaryPreferences {
     if (damaged) {
       recoveredData = true;
       // Retain the original data before a later save replaces the damaged list.
-      if (raw is String && !preferences.containsKey('recovery_$key')) {
-        await preferences.setString('recovery_$key', raw);
+      if (!preferences.containsKey('recovery_$key')) {
+        await writeString(
+          'recovery_$key',
+          raw is String ? raw : jsonEncode(raw),
+        );
       }
     }
     return records;
@@ -45,6 +48,27 @@ class DiaryPreferences {
     if (value is! num || !value.isFinite) return fallback;
     if (allowZero ? value < 0 : value <= 0) return fallback;
     return value.toDouble();
+  }
+
+  Future<void> writeString(String key, String value) async {
+    if (!await preferences.setString(key, value)) {
+      throw StateError('Could not save $key');
+    }
+  }
+
+  Future<void> writeNumber(String key, double value) async {
+    if (!value.isFinite || value < 0) {
+      throw const FormatException('Invalid number');
+    }
+    if (!await preferences.setDouble(key, value)) {
+      throw StateError('Could not save $key');
+    }
+  }
+
+  Future<void> writeList(String key, List<String> value) async {
+    if (!await preferences.setStringList(key, value)) {
+      throw StateError('Could not save $key');
+    }
   }
 
   Future<List<String>> readStringList(String key) async {

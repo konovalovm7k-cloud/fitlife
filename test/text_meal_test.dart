@@ -64,6 +64,30 @@ void main() {
       expect(calls, 0);
     },
   );
+  test(
+    'text service failures never tell the user to replace a photo',
+    () async {
+      for (final status in [400, 413, 415, 422]) {
+        final service = PhotoService(
+          client: MockClient((_) async => http.Response('', status)),
+        );
+        try {
+          await expectLater(
+            service.analyzeText(connection, 'Яблоко 180 г'),
+            throwsA(
+              isA<PhotoFailure>().having(
+                (error) => error.message,
+                'message',
+                isNot(contains('снимок')),
+              ),
+            ),
+          );
+        } finally {
+          service.close();
+        }
+      }
+    },
+  );
   testWidgets(
     'text is retained on consent refusal; review is explicitly confirmed and labelled as text',
     (tester) async {

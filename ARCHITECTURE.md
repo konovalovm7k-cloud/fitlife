@@ -88,3 +88,23 @@ Personal builds and their define files must never be published in Actions/Git.
 Missing or damaged food days are excluded from averages and clearly identified.
 Historical days are not compared against today's goals. The report is generated
 locally and copied only on request. See `JOURNABLE_UX_REVIEW.md` for product scope.
+
+## Save Integrity (4.5.1)
+
+`diary_repository.dart` serializes active-app writes within the Flutter isolate.
+Manual additions, catalogue additions and AI batches read the current stored day
+before applying an ID-based change; they no longer write a stale screen snapshot.
+The queue is not released merely because a UI timeout expires. A late native write
+finishes before a retry, whose stable operation ID prevents duplicate entries.
+
+Native write failures (false or exception) propagate; the cache is reloaded after
+failure. Damaged originals must be backed up successfully before replacement.
+Entry editing/deletion applies to the immutable target day and current stored ID.
+Save dialogs retain entered values until confirmation from storage, and water is
+incremented from the persisted value rather than an optimistic screen counter.
+
+This remains local SharedPreferences, not a multi-process database or a multi-key
+ACID transaction. A meal is embedded in its day even if updating recent products
+fails; retrying that same screen repairs the secondary list without duplicating
+the meal. Legacy goal keys are written sequentially; an interrupted multi-key save
+can be partial and must be retried. No storage format migration is required.

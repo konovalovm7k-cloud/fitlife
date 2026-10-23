@@ -15,6 +15,7 @@ import 'core/nutrition/nutrition_catalog_page.dart';
 import 'core/nutrition/nutrition_database.dart';
 import 'core/nutrition/nutrition_day.dart';
 import 'data/repositories/diary_preferences.dart';
+import 'data/repositories/diary_repository.dart';
 import 'features/photo_analysis/photo_diary.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
@@ -405,6 +406,10 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   DateTime day = DateUtils.dateOnly(DateTime.now());
   DateTime _lastToday = DateUtils.dateOnly(DateTime.now());
   bool recoveredData = false;
+  late final _repository = DiaryRepository(
+    preferencesLoader: widget.preferencesLoader,
+  );
+  static const _writeTimeout = Duration(seconds: 15);
 
   List<DiaryItem> diary = [];
   List<FoodItem> customFoods = [];
@@ -521,6 +526,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   _readSavedDay(String key) async {
     final prefs =
         await (widget.preferencesLoader ?? SharedPreferences.getInstance)();
+    await prefs.reload();
     final store = DiaryPreferences(prefs);
     final savedDiary = await store.readRecords(
       'diary_$key',
@@ -534,12 +540,14 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     final savedRecent = await store.readStringList('recent');
     if (!prefs.containsKey('water_migrated')) {
       if (!prefs.containsKey('water_$key')) {
-        await prefs.setDouble(
+        await store.writeNumber(
           'water_$key',
           store.number('water', 0, allowZero: true),
         );
       }
-      await prefs.setBool('water_migrated', true);
+      if (!await prefs.setBool('water_migrated', true)) {
+        throw StateError('Could not finish water migration');
+      }
     }
 
     return (
@@ -551,30 +559,35 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _saveDiary() async {
-    final key = 'diary_$dayKey';
-    final value = jsonEncode(diary.map((item) => item.toJson()).toList());
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
-  }
-
-  Future<void> _saveLists() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorites', favorites);
-    await prefs.setStringList('recent', recent);
-  }
-
-  Future<void> _saveFoods() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+  Future<void> _rememberFood(FoodItem food) => _repository.run((store) async {
+    final current = await store.readRecords('custom_foods', FoodItem.fromJson);
+    final updated = [...current.where((item) => item.id != food.id), food];
+    await store.writeString(
       'custom_foods',
-      jsonEncode(customFoods.map((item) => item.toJson()).toList()),
+      jsonEncode(updated.map((item) => item.toJson()).toList()),
+    );
+    if (mounted) setState(() => customFoods = updated);
+  });
+
+  void _showWriteError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Не удалось сохранить изменение. Проверьте запись и повторите попытку.',
+        ),
+      ),
     );
   }
 
-  Future<void> _setNumber(String key, double value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(key, value);
+  Future<void> _acceptDiary(
+    DateTime targetDay,
+    Future<List<DiaryItem>> operation,
+  ) async {
+    final saved = await operation.timeout(_writeTimeout);
+    if (mounted && DateUtils.isSameDay(day, targetDay)) {
+      setState(() => diary = saved);
+    }
   }
 
   @override
@@ -1437,6 +1450,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _openCatalog() async {
+    final targetDay = day;
     final entries = diary
         .map(
           (entry) => NutritionDayEntry(
@@ -1456,7 +1470,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         builder: (_) => NutritionCatalogPage(
           initialDay: NutritionDay(entries: entries),
           dayLabel: _dateLabel(),
-          onAdd: (entry) async {
+          onAdd: (entry, id) async {
             if (!mounted) return;
             final record = entry.food;
             final p = record.profile;
@@ -1470,20 +1484,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               fiber: p.fiber,
               nutrition: p,
             );
-            setState(() {
-              if (_foodById(food.id) == null) customFoods.add(food);
-              diary.add(
-                DiaryItem(
-                  id: DateTime.now().microsecondsSinceEpoch.toString(),
-                  meal: _suggestedMeal(),
-                  food: food,
-                  grams: entry.grams,
-                  time: TimeOfDay.now().format(context),
-                ),
-              );
-            });
-            await _saveDiary();
-            await _saveFoods();
+            final item = DiaryItem(
+              id: id,
+              meal: _suggestedMeal(),
+              food: food,
+              grams: entry.grams,
+              time: TimeOfDay.now().format(context),
+            );
+            await _rememberFood(food).timeout(_writeTimeout);
+            await _acceptDiary(targetDay, _repository.upsert(targetDay, item));
           },
         ),
       ),
@@ -1491,16 +1500,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _savePhotoMeal(PhotoMeal meal) async {
-    final saved = await savePhotoMeal(
-      meal,
-      preferencesLoader: widget.preferencesLoader,
-    ).timeout(const Duration(seconds: 15));
-    if (mounted && DateUtils.isSameDay(day, meal.day)) {
-      setState(() => diary = saved);
-    }
+    await _acceptDiary(
+      meal.day,
+      savePhotoMeal(meal, preferencesLoader: widget.preferencesLoader),
+    );
   }
 
   Future<void> _addFood({FoodItem? preselected}) async {
+    final targetDay = day;
+    final entryId = 'manual_${newDiaryEntryId()}';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1510,106 +1518,123 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         favorites: favorites,
         preselected: preselected,
         initialMeal: _suggestedMeal(),
-        onFavorite: (food) {
-          setState(() {
-            if (favorites.contains(food.id)) {
-              favorites.remove(food.id);
-            } else {
-              favorites.add(food.id);
-            }
-          });
-          _saveLists();
+        onFavorite: (food) async {
+          final updated = await _repository
+              .run((store) async {
+                final values = await store.readStringList('favorites');
+                if (values.contains(food.id)) {
+                  values.remove(food.id);
+                } else {
+                  values.add(food.id);
+                }
+                await store.writeList('favorites', values);
+                return values;
+              })
+              .timeout(_writeTimeout);
+          if (mounted) {
+            setState(() {
+              favorites
+                ..clear()
+                ..addAll(updated);
+            });
+          }
         },
         onAdd: (food, grams, meal) async {
-          setState(() {
-            diary.add(
-              DiaryItem(
-                id: DateTime.now().microsecondsSinceEpoch.toString(),
-                meal: meal,
-                food: food,
-                grams: grams,
-                time: TimeOfDay.now().format(context),
-              ),
-            );
-            recent = [
-              food.id,
-              ...recent.where((id) => id != food.id),
-            ].take(10).toList();
-          });
-          await _saveDiary();
-          await _saveLists();
+          final item = DiaryItem(
+            id: entryId,
+            meal: meal,
+            food: food,
+            grams: grams,
+            time: TimeOfDay.now().format(context),
+          );
+          await _acceptDiary(targetDay, _repository.upsert(targetDay, item));
+          final updated = await _repository
+              .run((store) async {
+                final current = await store.readStringList('recent');
+                final values = [
+                  food.id,
+                  ...current.where((id) => id != food.id),
+                ].take(10).toList();
+                await store.writeList('recent', values);
+                return values;
+              })
+              .timeout(_writeTimeout);
+          if (mounted) setState(() => recent = updated);
         },
       ),
     );
   }
 
   Future<void> _editDiaryItem(DiaryItem item) async {
-    final result = await showDialog<ValueEditResult>(
+    final targetDay = day;
+    await showDialog<ValueEditResult>(
       context: context,
       builder: (_) => ValueEditorDialog(
         title: item.food.name,
         allowDelete: true,
         fields: [NumberFieldSpec('Граммы', item.grams, min: 0.1)],
+        onSave: (result) => _acceptDiary(
+          targetDay,
+          _repository.updateDay(targetDay, (current) {
+            final index = current.indexWhere((entry) => entry.id == item.id);
+            if (index < 0) throw StateError('Entry no longer exists');
+            if (result.deleted) {
+              current.removeAt(index);
+            } else {
+              final saved = current[index];
+              current[index] = DiaryItem(
+                id: saved.id,
+                meal: saved.meal,
+                food: saved.food,
+                grams: result.values.first,
+                time: saved.time,
+              );
+            }
+            return current;
+          }),
+        ),
       ),
     );
-    if (!mounted || result == null) return;
-    final index = diary.indexWhere((entry) => entry.id == item.id);
-    if (index < 0) return;
-    setState(() {
-      if (result.deleted) {
-        diary.removeAt(index);
-      } else {
-        diary[index] = DiaryItem(
-          id: item.id,
-          meal: item.meal,
-          food: item.food,
-          grams: result.values.first,
-          time: item.time,
-        );
-      }
-    });
-    await _saveDiary();
   }
 
   Future<void> _addCustomFood() async {
+    final id = 'custom_${newDiaryEntryId()}';
     final result = await showDialog<ValueEditResult>(
       context: context,
-      builder: (_) => const ValueEditorDialog(
+      builder: (_) => ValueEditorDialog(
         title: 'Свой продукт',
         initialName: '',
-        fields: [
+        fields: const [
           NumberFieldSpec('Ккал / 100 г', 0),
           NumberFieldSpec('Белок / 100 г', 0, max: 100),
           NumberFieldSpec('Жиры / 100 г', 0, max: 100),
           NumberFieldSpec('Углеводы / 100 г', 0, max: 100),
           NumberFieldSpec('Клетчатка / 100 г', 0, max: 100),
         ],
+        onSave: (result) async {
+          final v = result.values;
+          await _rememberFood(
+            FoodItem(
+              id: id,
+              name: result.name!,
+              kcal: v[0],
+              protein: v[1],
+              fat: v[2],
+              carbs: v[3],
+              fiber: v[4],
+            ),
+          );
+        },
       ),
     );
     if (!mounted || result == null) return;
-    final v = result.values;
-    setState(
-      () => customFoods.add(
-        FoodItem(
-          id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
-          name: result.name!,
-          kcal: v[0],
-          protein: v[1],
-          fat: v[2],
-          carbs: v[3],
-          fiber: v[4],
-        ),
-      ),
-    );
-    await _saveFoods();
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Продукт сохранён и доступен в поиске')),
     );
   }
 
   Future<void> _editGoals() async {
-    final result = await showDialog<ValueEditResult>(
+    await showDialog<ValueEditResult>(
       context: context,
       builder: (_) => ValueEditorDialog(
         title: 'Цели питания',
@@ -1622,40 +1647,56 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         validate: (v) => v[1] * 4 + v[2] * 9 > v[0]
             ? 'Калории из белков и жиров превышают дневную цель.'
             : null,
+        onSave: (result) async {
+          final v = result.values;
+          await _repository.run((store) async {
+            await store.writeNumber('goal_calories', v[0]);
+            await store.writeNumber('goal_protein', v[1]);
+            await store.writeNumber('goal_fat', v[2]);
+            await store.writeNumber('goal_fiber', v[3]);
+          });
+          if (mounted) {
+            setState(() {
+              kcalTarget = v[0];
+              proteinTarget = v[1];
+              fatTarget = v[2];
+              fiberTarget = v[3];
+            });
+          }
+        },
       ),
     );
-    if (!mounted || result == null) return;
-    final v = result.values;
-    setState(() {
-      kcalTarget = v[0];
-      proteinTarget = v[1];
-      fatTarget = v[2];
-      fiberTarget = v[3];
-    });
-    await _setNumber('goal_calories', v[0]);
-    await _setNumber('goal_protein', v[1]);
-    await _setNumber('goal_fat', v[2]);
-    await _setNumber('goal_fiber', v[3]);
   }
 
   Future<void> _addWater() async {
-    final next = water + 0.25;
-    setState(() => water = next);
-    await _setNumber('water_$dayKey', next);
+    final key = 'water_$dayKey';
+    try {
+      final next = await _repository
+          .run((store) async {
+            final value = store.number(key, 0, allowZero: true) + 0.25;
+            await store.writeNumber(key, value);
+            return value;
+          })
+          .timeout(_writeTimeout);
+      if (mounted && key == 'water_$dayKey') setState(() => water = next);
+    } catch (_) {
+      _showWriteError();
+    }
   }
 
   Future<void> _addWeight() async {
-    final result = await showDialog<ValueEditResult>(
+    await showDialog<ValueEditResult>(
       context: context,
       builder: (_) => ValueEditorDialog(
         title: 'Вес',
         fields: [NumberFieldSpec('Вес, кг', weight, min: 30, max: 300)],
+        onSave: (result) async {
+          final value = result.values.first;
+          await _repository.run((store) => store.writeNumber('weight', value));
+          if (mounted) setState(() => weight = value);
+        },
       ),
     );
-    if (!mounted || result == null) return;
-    final value = result.values.first;
-    setState(() => weight = value);
-    await _setNumber('weight', value);
   }
 }
 
@@ -1673,7 +1714,7 @@ class _FoodEntrySheet extends StatefulWidget {
   final List<String> favorites;
   final FoodItem? preselected;
   final String initialMeal;
-  final ValueChanged<FoodItem> onFavorite;
+  final Future<void> Function(FoodItem) onFavorite;
   final Future<void> Function(FoodItem, double, String) onAdd;
 
   @override
@@ -1687,6 +1728,8 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
   String _query = '';
   String? _error;
   bool _saving = false;
+  bool _favoriteSaving = false;
+  String? _saveError;
 
   @override
   void dispose() {
@@ -1701,9 +1744,25 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
       return;
     }
     if (_selected == null || _saving) return;
-    setState(() => _saving = true);
-    await widget.onAdd(_selected!, grams, _meal);
-    if (mounted) Navigator.pop(context);
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      await widget
+          .onAdd(_selected!, grams, _meal)
+          .timeout(const Duration(seconds: 15));
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _saveError =
+              'Не удалось завершить сохранение. Порция осталась здесь; повторная попытка не создаст дубль.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -1716,168 +1775,195 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
               .contains(_query.trim().toLowerCase().replaceAll('ё', 'е')),
         )
         .toList();
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        12,
-        20,
-        MediaQuery.viewInsetsOf(context).bottom + 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: line,
-                borderRadius: BorderRadius.circular(8),
+    return PopScope(
+      canPop: !_saving,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: line,
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Что было на тарелке?',
-            style: TextStyle(
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
+            const SizedBox(height: 18),
+            const Text(
+              'Что было на тарелке?',
+              style: TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Выбери продукт и укажи свою порцию',
-            style: TextStyle(color: muted, fontSize: 12),
-          ),
-          const SizedBox(height: 18),
-          TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Поиск продукта',
+            const SizedBox(height: 6),
+            const Text(
+              'Выбери продукт и укажи свою порцию',
+              style: TextStyle(color: muted, fontSize: 12),
             ),
-            onChanged: (value) => setState(() => _query = value),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: (MediaQuery.sizeOf(context).height * 0.25).clamp(
-              100.0,
-              230.0,
+            const SizedBox(height: 18),
+            TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Поиск продукта',
+              ),
+              onChanged: (value) => setState(() => _query = value),
             ),
-            child: filtered.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Ничего не найдено. Можно создать свой продукт.',
-                      textAlign: TextAlign.center,
+            const SizedBox(height: 8),
+            SizedBox(
+              height: (MediaQuery.sizeOf(context).height * 0.25).clamp(
+                100.0,
+                230.0,
+              ),
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Ничего не найдено. Можно создать свой продукт.',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final food = filtered[index];
+                        final favorite = widget.favorites.contains(food.id);
+                        return ListTile(
+                          selected: _selected?.id == food.id,
+                          selectedTileColor: mint,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          leading: Icon(
+                            _selected?.id == food.id
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: _selected?.id == food.id ? green : muted,
+                            size: 22,
+                          ),
+                          title: Text(
+                            food.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${food.kcal.round()} ккал на 100 г',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: IconButton(
+                            tooltip: favorite
+                                ? 'Убрать из избранного'
+                                : 'В избранное',
+                            icon: Icon(
+                              favorite
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                              color: gold,
+                            ),
+                            onPressed: _favoriteSaving || _saving
+                                ? null
+                                : () async {
+                                    setState(() => _favoriteSaving = true);
+                                    try {
+                                      await widget.onFavorite(food);
+                                    } catch (_) {
+                                      if (mounted) {
+                                        setState(
+                                          () => _saveError =
+                                              'Не удалось изменить избранное. Повторите попытку.',
+                                        );
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _favoriteSaving = false);
+                                      }
+                                    }
+                                  },
+                          ),
+                          onTap: () => setState(() => _selected = food),
+                        );
+                      },
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final food = filtered[index];
-                      final favorite = widget.favorites.contains(food.id);
-                      return ListTile(
-                        selected: _selected?.id == food.id,
-                        selectedTileColor: mint,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                        leading: Icon(
-                          _selected?.id == food.id
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                          color: _selected?.id == food.id ? green : muted,
-                          size: 22,
-                        ),
-                        title: Text(
-                          food.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${food.kcal.round()} ккал на 100 г',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        trailing: IconButton(
-                          tooltip: favorite
-                              ? 'Убрать из избранного'
-                              : 'В избранное',
-                          icon: Icon(
-                            favorite
-                                ? Icons.star_rounded
-                                : Icons.star_border_rounded,
-                            color: gold,
-                          ),
-                          onPressed: () {
-                            widget.onFavorite(food);
-                            setState(() {});
-                          },
-                        ),
-                        onTap: () => setState(() => _selected = food),
-                      );
-                    },
-                  ),
-          ),
-          if (_selected != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                'Выбрано: ${_selected!.name}',
-                style: const TextStyle(
-                  color: greenDark,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
             ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _grams,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Граммы',
-                    errorText: _error,
+            if (_selected != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'Выбрано: ${_selected!.name}',
+                  style: const TextStyle(
+                    color: greenDark,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _meal,
-                  isExpanded: true,
-                  items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: item,
-                          child: Text(item, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _meal = value ?? _meal),
-                  decoration: const InputDecoration(labelText: 'Приём пищи'),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _grams,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Граммы',
+                      errorText: _error,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _meal,
+                    isExpanded: true,
+                    items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item, overflow: TextOverflow.ellipsis),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _meal = value ?? _meal),
+                    decoration: const InputDecoration(labelText: 'Приём пищи'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            if (_saveError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _saveError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: _selected == null || _saving ? null : _add,
-            icon: const Icon(Icons.add),
-            label: Text(_saving ? 'Сохраняем...' : 'Добавить'),
-          ),
-        ],
+            FilledButton.icon(
+              onPressed: _selected == null || _saving ? null : _add,
+              icon: const Icon(Icons.add),
+              label: Text(_saving ? 'Сохраняем...' : 'Добавить'),
+            ),
+          ],
+        ),
       ),
     );
   }

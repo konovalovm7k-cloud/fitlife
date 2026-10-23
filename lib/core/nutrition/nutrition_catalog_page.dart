@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/widgets/value_editor.dart';
+import '../../data/repositories/diary_repository.dart';
 import '../models/nutrition_profile.dart';
 import 'nutrition_database.dart';
 import 'nutrition_day.dart';
@@ -13,7 +14,7 @@ class NutritionCatalogPage extends StatefulWidget {
     this.dayLabel = 'Сегодня',
   });
   final NutritionDay initialDay;
-  final Future<void> Function(NutritionDayEntry)? onAdd;
+  final Future<void> Function(NutritionDayEntry, String id)? onAdd;
   final String dayLabel;
   @override
   State<NutritionCatalogPage> createState() => _NutritionCatalogPageState();
@@ -23,6 +24,10 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
   final _search = TextEditingController();
   final _catalog = const NutritionCatalog();
   late NutritionDay _day = widget.initialDay;
+  NutritionDayEntry? _pending;
+  String? _pendingId;
+  bool _saving = false;
+  String? _saveError;
 
   @override
   void dispose() {
@@ -33,84 +38,147 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
   @override
   Widget build(BuildContext context) {
     final results = _catalog.search(_search.text);
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F8),
-      appBar: AppBar(
-        title: const Text('База продуктов'),
-        backgroundColor: Colors.white,
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-              child: TextField(
-                controller: _search,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: 'Поиск продуктов',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _search.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.clear),
-                        ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F7F8),
+        appBar: AppBar(
+          title: const Text('База продуктов'),
+          backgroundColor: Colors.white,
+        ),
+        body: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                child: TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Поиск продуктов',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              _search.clear();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.clear),
+                          ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                widget.dayLabel,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(child: _DaySummary(day: _day)),
-          SliverToBoxAdapter(child: _DayMicronutrientAnalysis(day: _day)),
-          if (results.isEmpty)
-            const SliverToBoxAdapter(
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Продукты не найдены. Попробуй другое название.'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Text(
+                  widget.dayLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
-            sliver: SliverList.builder(
-              itemCount: results.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _ProductCard(item: results[i], onAdd: _addFood),
+            SliverToBoxAdapter(child: _DaySummary(day: _day)),
+            SliverToBoxAdapter(child: _DayMicronutrientAnalysis(day: _day)),
+            if (_saveError != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        _saveError!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                      FilledButton(
+                        onPressed: _saving ? null : _savePending,
+                        child: Text(
+                          _saving ? 'Сохраняем...' : 'Повторить сохранение',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (results.isEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Продукты не найдены. Попробуй другое название.'),
+                ),
+              ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
+              sliver: SliverList.builder(
+                itemCount: results.length,
+                itemBuilder: (_, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ProductCard(
+                    item: results[i],
+                    onAdd: _saving || _pending != null ? null : _addFood,
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _addFood(NutritionFoodRecord food) async {
+    if (_saving || _pending != null) return;
     final grams = await _askGrams(food.name);
     if (!mounted || grams == null || !grams.isFinite || grams <= 0) return;
-    await widget.onAdd?.call(NutritionDayEntry(food: food, grams: grams));
-    if (!mounted) return;
-    setState(() => _day = _day.add(food, grams));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('${food.name}: добавлено $grams г')));
+    setState(() {
+      _pending = NutritionDayEntry(food: food, grams: grams);
+      _pendingId = 'catalog_${newDiaryEntryId()}';
+    });
+    await _savePending();
+  }
+
+  Future<void> _savePending() async {
+    final entry = _pending;
+    if (_saving || entry == null) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onAdd
+          ?.call(entry, _pendingId!)
+          .timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      setState(() {
+        _day = _day.add(entry.food, entry.grams);
+        _pending = null;
+        _pendingId = null;
+        _saveError = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${entry.food.name}: добавлено ${entry.grams} г'),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _saveError =
+              'Не удалось завершить сохранение. Повторите попытку: выбранная порция сохранена на этом экране.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<double?> _askGrams(String name) async {
@@ -286,7 +354,7 @@ class _DayMicronutrientAnalysis extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   const _ProductCard({required this.item, required this.onAdd});
   final NutritionFoodRecord item;
-  final ValueChanged<NutritionFoodRecord> onAdd;
+  final ValueChanged<NutritionFoodRecord>? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +377,7 @@ class _ProductCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: () => onAdd(item),
+              onPressed: onAdd == null ? null : () => onAdd!(item),
               icon: const Icon(Icons.add),
               label: const Text('Добавить в дневник'),
             ),

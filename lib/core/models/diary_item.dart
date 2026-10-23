@@ -88,11 +88,11 @@ class DiaryItem {
     'time': time,
   };
   factory DiaryItem.fromJson(Map<String, dynamic> json) => DiaryItem(
-    id: json['id'] as String,
-    meal: json['meal'] as String,
+    id: _requiredString(json['id']),
+    meal: _requiredString(json['meal']),
     food: FoodItem.fromJson(Map<String, dynamic>.from(json['food'] as Map)),
     grams: _storedNumber(json['grams'], positive: true),
-    time: json['time'] as String,
+    time: _requiredString(json['time']),
   );
 }
 

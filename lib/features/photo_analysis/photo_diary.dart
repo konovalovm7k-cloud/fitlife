@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/diary_item.dart';
-import '../../data/repositories/diary_preferences.dart';
+import '../../data/repositories/diary_repository.dart';
 import 'photo_models.dart';
 
 Future<List<DiaryItem>> savePhotoMeal(
@@ -14,13 +13,6 @@ Future<List<DiaryItem>> savePhotoMeal(
       !photoMeals.contains(meal.meal)) {
     throw const FormatException('Invalid photo meal');
   }
-  final prefs = await (preferencesLoader ?? SharedPreferences.getInstance)();
-  final date =
-      '${meal.day.year}-${meal.day.month.toString().padLeft(2, '0')}-${meal.day.day.toString().padLeft(2, '0')}';
-  final key = 'diary_$date';
-  await prefs.reload();
-  final store = DiaryPreferences(prefs);
-  final current = await store.readRecords(key, DiaryItem.fromJson);
   final entries = <DiaryItem>[];
   final kind = meal.source == MealEstimateSource.text ? 'text' : 'photo';
   for (var i = 0; i < meal.items.length; i++) {
@@ -49,16 +41,13 @@ Future<List<DiaryItem>> savePhotoMeal(
     );
   }
   final prefix = '${kind}_${meal.id}_';
-  final updated = [
-    ...current.where((entry) => !entry.id.startsWith(prefix)),
-    ...entries,
-  ];
   // Replace the entire stable-ID batch on retry, including any edits/removals
   // after a failed write or a timeout whose disk operation completed late.
-  final ok = await prefs.setString(
-    key,
-    jsonEncode(updated.map((item) => item.toJson()).toList()),
+  return DiaryRepository(preferencesLoader: preferencesLoader).updateDay(
+    meal.day,
+    (current) => [
+      ...current.where((entry) => !entry.id.startsWith(prefix)),
+      ...entries,
+    ],
   );
-  if (!ok) throw StateError('Could not save photo meal');
-  return updated;
 }
