@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../app/widgets/value_editor.dart';
 import 'dart:math';
 import '../models/nutrition_profile.dart';
 import 'nutrition_database.dart';
 import 'nutrition_day.dart';
 import 'nutrition_targets.dart';
+import 'food_catalog_import.dart';
 
 class NutritionCatalogPage extends StatefulWidget {
   const NutritionCatalogPage({
@@ -22,7 +24,32 @@ class NutritionCatalogPage extends StatefulWidget {
 
 class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
   final _search = TextEditingController();
-  final _catalog = const NutritionCatalog();
+  var _catalog = const NutritionCatalog();
+  bool _catalogError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdditional();
+  }
+
+  Future<void> _loadAdditional() async {
+    try {
+      final extra = await loadAdditionalFoods().timeout(
+        const Duration(seconds: 10),
+      );
+      if (mounted) {
+        setState(
+          () => _catalog = NutritionCatalog(
+            records: [...nutritionDatabase, ...extra],
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _catalogError = true);
+    }
+  }
+
   late NutritionDay _day = widget.initialDay;
   NutritionDayEntry? _pending;
   String? _pendingId;
@@ -48,6 +75,15 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
         ),
         body: CustomScrollView(
           slivers: [
+            if (_catalogError)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Дополнительная база недоступна. Основные продукты и дневник работают.',
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
@@ -382,70 +418,100 @@ class _ProductCard extends StatelessWidget {
               icon: const Icon(Icons.add),
               label: const Text('Добавить в дневник'),
             ),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text(
-                'Полный состав',
-                style: TextStyle(fontWeight: FontWeight.w700),
+            if (item.macrosOnly)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'В источнике доступны только калории и БЖУ. Данных о клетчатке и микроэлементах нет.',
+                ),
               ),
-              children: [
-                const Text(
-                  'Пищевая ценность на 100 г',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            if (!item.macrosOnly)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text(
+                  'Полный состав',
+                  style: TextStyle(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
-                _nutrient('🔥 Калорийность', p.kcal, 'ккал', 1684),
-                _nutrient('🥩 Белки', p.protein, 'г', 76),
-                _nutrient('🟡 Жиры', p.fat, 'г', 56),
-                _nutrient('🌾 Углеводы', p.carbs, 'г', 219),
-                _nutrient('🌿 Пищевые волокна', p.fiber, 'г', 20),
-                _nutrient('💧 Вода', p.water, 'г', 2273),
-                const SizedBox(height: 12),
-                const Text(
-                  'Витамины и минералы',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 6),
-                _twoColumns(p.vitamins, p.minerals),
-                if (p.aminoAcids.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                children: [
                   const Text(
-                    'Аминокислоты',
+                    'Пищевая ценность на 100 г',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  _nutrient('🔥 Калорийность', p.kcal, 'ккал', 1684),
+                  _nutrient('🥩 Белки', p.protein, 'г', 76),
+                  _nutrient('🟡 Жиры', p.fat, 'г', 56),
+                  _nutrient('🌾 Углеводы', p.carbs, 'г', 219),
+                  _nutrient('🌿 Пищевые волокна', p.fiber, 'г', 20),
+                  _nutrient('💧 Вода', p.water, 'г', 2273),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Витамины и минералы',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  _twoColumns(p.vitamins, p.minerals),
+                  if (p.aminoAcids.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Аминокислоты',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    _mapGrid(p.aminoAcids),
+                  ],
+                  if (p.fattyAcids.isNotEmpty ||
+                      p.omega3 != null ||
+                      p.omega6 != null ||
+                      p.cholesterol != null) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Жирные кислоты и стеролы',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (p.omega3 != null)
+                      _row('Омега-3', '${_fmt(p.omega3!)} г'),
+                    if (p.omega6 != null)
+                      _row('Омега-6', '${_fmt(p.omega6!)} г'),
+                    if (p.cholesterol != null)
+                      _row('Холестерин', '${_fmt(p.cholesterol!)} мг'),
+                    if (p.fattyAcids.isNotEmpty) _mapGrid(p.fattyAcids),
+                  ],
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Рейтинг',
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                   ),
-                  _mapGrid(p.aminoAcids),
-                ],
-                if (p.fattyAcids.isNotEmpty ||
-                    p.omega3 != null ||
-                    p.omega6 != null ||
-                    p.cholesterol != null) ...[
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Жирные кислоты и стеролы',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  Text(
+                    'Полнота состава: ${_completeness(p)}%',
+                    style: const TextStyle(color: Colors.black54),
                   ),
-                  if (p.omega3 != null) _row('Омега-3', '${_fmt(p.omega3!)} г'),
-                  if (p.omega6 != null) _row('Омега-6', '${_fmt(p.omega6!)} г'),
-                  if (p.cholesterol != null)
-                    _row('Холестерин', '${_fmt(p.cholesterol!)} мг'),
-                  if (p.fattyAcids.isNotEmpty) _mapGrid(p.fattyAcids),
+                  const SizedBox(height: 8),
                 ],
-                const SizedBox(height: 12),
-                const Text(
-                  'Рейтинг',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                ),
-                Text(
-                  'Полнота состава: ${_completeness(p)}%',
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
             const SizedBox(height: 6),
             Text(
               'Источник: ${item.source}',
               style: const TextStyle(color: Colors.black54, fontSize: 12),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: item.sourceUrl));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ссылка на источник скопирована'),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.link),
+              label: const Text('Скопировать ссылку на источник'),
             ),
           ],
         ),

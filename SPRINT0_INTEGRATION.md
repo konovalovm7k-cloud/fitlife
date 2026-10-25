@@ -46,8 +46,12 @@ result; do not merge their old conflict resolutions over this result.
   `190fa5f38b0b27b3c197459b60e34dbaa2964a38682bdb655363e2ca6386b431`.
 - APK SHA-256:
   `bc0eba48933f48cfe06b5c9b02cd7bcfe99857ffae3ee83fd8d9294e06e43683`.
-- Android smoke and CI results are appended after execution; a successful build
-  alone does not establish a successful installed-device flow.
+- Android 15 native smoke passed: installed the existing signed personal 4.5.1,
+  saved water, then updated to 4.5.2 without data resets; verified water,
+  whole/fractional goals and derived carbs, manual egg entry, cold launches,
+  another in-place update and encrypted connection save/read/delete. The
+  fractional-goal screenshot was visually inspected. Physical phone not tested.
+- CI run `40224669617` tracks PR #7. Final CI status is reported separately.
 
 ## Additional local Codex work
 

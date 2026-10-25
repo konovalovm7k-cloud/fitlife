@@ -211,6 +211,7 @@ class FitLifeController extends ChangeNotifier {
               source: '',
               sourceUrl: '',
               profile: entry.food.profile,
+              macrosOnly: !entry.food.hasKnownFiber,
             ),
             grams: entry.grams,
           ),
@@ -236,6 +237,7 @@ class FitLifeController extends ChangeNotifier {
       carbs: p.carbs,
       fiber: p.fiber,
       nutrition: p,
+      hasKnownFiber: !record.macrosOnly,
     );
     if (!foods.any((item) => item.id == food.id)) await saveFood(food);
     if (_disposed) return;

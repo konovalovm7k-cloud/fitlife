@@ -13,6 +13,7 @@ import 'app/widgets/day_nutrition_summary.dart';
 import 'app/widgets/companion_avatar.dart';
 import 'app/widgets/value_editor.dart';
 import 'core/models/diary_item.dart';
+import 'data/repositories/diary_repository.dart';
 import 'core/models/nutrition_goal_settings.dart';
 import 'core/nutrition/nutrition_catalog_page.dart';
 import 'features/photo_analysis/photo_models.dart';
@@ -20,6 +21,11 @@ import 'features/photo_analysis/photo_page.dart';
 import 'features/photo_analysis/photo_settings_page.dart';
 import 'features/photo_analysis/text_meal_page.dart';
 import 'features/progress/weekly_summary_page.dart';
+import 'features/progress/weight_history.dart';
+import 'features/progress/weight_history_page.dart';
+import 'features/saved_meals/saved_meals.dart';
+import 'features/saved_meals/saved_meal_editor.dart';
+import 'features/saved_meals/saved_meals_page.dart';
 
 export 'core/models/diary_item.dart';
 export 'data/built_in_foods.dart';
@@ -49,6 +55,9 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   late FitLifeController _controller;
   late bool _ownsController;
   int tab = 0;
+  DiaryRepository get _repository =>
+      DiaryRepository.withLoader(preferencesLoader: widget.preferencesLoader);
+  bool get hasFiberGaps => diary.any((entry) => !entry.food.hasKnownFiber);
 
   FitLifeState get data => _controller.state;
   double get kcalTarget => data.goals.calories;
@@ -57,7 +66,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   double get fiberTarget => data.goals.fiber;
   double get carbsTarget => data.carbsTarget;
   double get water => data.water;
-  double get weight => data.weight;
+  double? get weight => data.weight;
   bool get loading => data.status == FitLifeLoadStatus.loading;
   bool get loadFailed => data.status == FitLifeLoadStatus.failed;
   bool get recoveredData => data.recoveredData;
@@ -354,7 +363,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
             const SizedBox(width: 8),
             _statCard(
               'Вес',
-              '${weight.toStringAsFixed(1)} кг',
+              weight == null ? 'Добавить' : '${weight!.toStringAsFixed(1)} кг',
               Icons.monitor_weight_outlined,
               _addWeight,
             ),
@@ -427,6 +436,12 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         _header('Питание', 'Поиск, избранное и последние продукты'),
         const SizedBox(height: 14),
         _quickMealActions(),
+        const SizedBox(height: 12),
+        FilledButton.tonalIcon(
+          onPressed: _openSavedMeals,
+          icon: const Icon(Icons.bookmarks_outlined),
+          label: const Text('Мои блюда и повтор еды'),
+        ),
         const SizedBox(height: 12),
         _card(
           Column(
@@ -595,6 +610,12 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       children: [
         _header('Прогресс', 'Устойчивость важнее идеального дня'),
         const SizedBox(height: 14),
+        FilledButton.tonalIcon(
+          onPressed: _openWeightHistory,
+          icon: const Icon(Icons.monitor_weight_outlined),
+          label: const Text('История веса'),
+        ),
+        const SizedBox(height: 14),
         FilledButton.icon(
           onPressed: _showWeeklyReport,
           icon: const Icon(Icons.calendar_view_week_outlined),
@@ -623,7 +644,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 14),
               _progressLine(
-                'Клетчатка',
+                hasFiberGaps ? 'Клетчатка · данные неполные' : 'Клетчатка',
                 fiber / fiberTarget,
                 '${fiber.round()} / ${fiberTarget.round()} г',
               ),
@@ -682,7 +703,12 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(height: 12),
-              _profileRow('Вес', '${weight.toStringAsFixed(1)} кг'),
+              _profileRow(
+                'Вес',
+                weight == null
+                    ? 'Не указан'
+                    : '${weight!.toStringAsFixed(1)} кг',
+              ),
               _profileRow(
                 'Цель по калориям',
                 '${formatNutritionGoal(kcalTarget)} ккал',
@@ -701,6 +727,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                 onPressed: _addWeight,
                 icon: const Icon(Icons.monitor_weight_outlined),
                 label: const Text('Обновить вес'),
+              ),
+              TextButton.icon(
+                onPressed: _openWeightHistory,
+                icon: const Icon(Icons.show_chart),
+                label: const Text('История веса'),
               ),
             ],
           ),
@@ -802,7 +833,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       text = 'Следующее действие: добавь первый приём пищи';
     } else if (protein < proteinTarget * 0.7) {
       text = 'Следующее действие: добавь белковый продукт';
-    } else if (fiber < fiberTarget * 0.6) {
+    } else if (!hasFiberGaps && fiber < fiberTarget * 0.6) {
       text = 'Следующее действие: добавь овощи или ягоды';
     } else {
       text = 'Следующее действие: продолжай обычный ритм';
@@ -892,13 +923,24 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              meal,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: ink,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    meal,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: ink,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Сохранить блюдо',
+                  onPressed: () => _saveMealTemplate(meal, items),
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             ...items.map(
@@ -1162,18 +1204,64 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _addWeight() async {
+    final targetDay = DateTime(day.year, day.month, day.day);
     await showDialog<ValueEditResult>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ValueEditorDialog(
-        title: 'Вес',
-        fields: [NumberFieldSpec('Вес, кг', weight, min: 30, max: 300)],
+        title: 'Вес · ${weightDate(targetDay)}',
+        fields: [NumberFieldSpec('Вес, кг', weight ?? 70, min: 30, max: 300)],
         onSave: (result) async {
           final value = result.values.first;
-          await _controller.saveWeight(value);
+          await WeightRepository(
+            _repository,
+          ).save(WeightEntry(targetDay, value));
+          if (mounted) await _controller.load();
         },
       ),
     );
+  }
+
+  Future<void> _openWeightHistory() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            WeightHistoryPage(repository: WeightRepository(_repository)),
+      ),
+    );
+    if (mounted) await _controller.load();
+  }
+
+  Future<void> _openSavedMeals() async {
+    final target = day;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SavedMealsPage(
+          repository: SavedMealsRepository(_repository),
+          day: target,
+          initialMeal: _suggestedMeal(),
+        ),
+      ),
+    );
+    if (mounted) await _controller.load();
+  }
+
+  Future<void> _saveMealTemplate(String meal, List<DiaryItem> items) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SavedMealEditor(
+          repository: SavedMealsRepository(_repository),
+          initial: SavedMeal(id: newDiaryEntryId(), name: meal, items: items),
+        ),
+      ),
+    );
+    if (mounted && saved == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Блюдо сохранено. Откройте «Питание → Мои блюда».'),
+        ),
+      );
+    }
   }
 }
 

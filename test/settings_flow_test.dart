@@ -181,16 +181,17 @@ void main() {
   testWidgets(
     'weight failure retains draft and retry persists before the dialog closes',
     (tester) async {
+      await disk.setValue('Double', 'flutter.weight', 81.4);
       await launch(tester);
       await profile(tester);
       await tester.tap(find.text('Обновить вес'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '99,5');
-      disk.failedKeys.add('weight');
+      disk.failedKeys.add('weight_history_v1');
       await tester.tap(find.text('Сохранить'));
       await tester.pumpAndSettle();
       expect(find.text(saveError), findsOneWidget);
-      expect(find.text('104.2 кг'), findsOneWidget);
+      expect(find.text('81.4 кг'), findsOneWidget);
       disk.failedKeys.clear();
       await tester.tap(find.text('Сохранить'));
       await tester.pumpAndSettle();

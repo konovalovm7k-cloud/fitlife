@@ -16,13 +16,16 @@ class NutritionDay {
   const NutritionDay({this.entries = const []});
 
   NutritionProfile get total => entries.fold(
-        const NutritionProfile(kcal: 0, protein: 0, fat: 0, carbs: 0),
-        (sum, entry) => sum + entry.profile,
-      );
+    const NutritionProfile(kcal: 0, protein: 0, fat: 0, carbs: 0),
+    (sum, entry) => sum + entry.profile,
+  );
 
   NutritionDay add(NutritionFoodRecord food, double grams) => NutritionDay(
-        entries: [...entries, NutritionDayEntry(food: food, grams: grams)],
-      );
+    entries: [
+      ...entries,
+      NutritionDayEntry(food: food, grams: grams),
+    ],
+  );
 
   NutritionDay removeAt(int index) {
     final copy = [...entries]..removeAt(index);
@@ -31,13 +34,16 @@ class NutritionDay {
 }
 
 class NutritionCatalog {
-  const NutritionCatalog();
+  const NutritionCatalog({this.records = nutritionDatabase});
+  final List<NutritionFoodRecord> records;
 
   List<NutritionFoodRecord> search(String query) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return nutritionDatabase;
-    return nutritionDatabase
-        .where((food) => food.name.toLowerCase().contains(q))
+    final q = query.trim().toLowerCase().replaceAll('ё', 'е');
+    if (q.isEmpty) return records;
+    return records
+        .where(
+          (food) => food.name.toLowerCase().replaceAll('ё', 'е').contains(q),
+        )
         .toList(growable: false);
   }
 }

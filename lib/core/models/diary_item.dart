@@ -12,6 +12,7 @@ class FoodItem {
     this.nutrition,
     this.isPhotoEstimate = false,
     this.isTextEstimate = false,
+    this.hasKnownFiber = true,
   });
   final String id;
   final String name;
@@ -23,6 +24,7 @@ class FoodItem {
   final NutritionProfile? nutrition;
   final bool isPhotoEstimate;
   final bool isTextEstimate;
+  final bool hasKnownFiber;
   NutritionProfile get profile =>
       nutrition ??
       NutritionProfile(
@@ -43,6 +45,7 @@ class FoodItem {
     if (nutrition != null) 'nutrition': nutrition!.toJson(),
     if (isPhotoEstimate) 'photoEstimate': true,
     if (isTextEstimate) 'textEstimate': true,
+    if (!hasKnownFiber) 'fiberKnown': false,
   };
   factory FoodItem.fromJson(Map<String, dynamic> json) => FoodItem(
     id: _requiredString(json['id']),
@@ -54,6 +57,7 @@ class FoodItem {
     fiber: _storedNumber(json['fiber']),
     isPhotoEstimate: json['photoEstimate'] == true,
     isTextEstimate: json['textEstimate'] == true,
+    hasKnownFiber: json['fiberKnown'] != false,
     nutrition: json['nutrition'] == null
         ? null
         : NutritionProfile.fromJson(

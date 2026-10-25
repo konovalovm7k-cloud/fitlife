@@ -8,6 +8,11 @@ import 'package:fitlife/features/photo_analysis/photo_models.dart';
 import 'package:fitlife/features/photo_analysis/photo_review_page.dart';
 import 'package:fitlife/features/photo_analysis/text_meal_page.dart';
 import 'package:fitlife/features/progress/weekly_summary_page.dart';
+import 'package:fitlife/features/progress/weight_history.dart';
+import 'package:fitlife/features/progress/weight_history_page.dart';
+import 'package:fitlife/features/saved_meals/saved_meals.dart';
+import 'package:fitlife/features/saved_meals/saved_meals_page.dart';
+import 'package:fitlife/data/repositories/diary_repository.dart';
 import 'package:fitlife/core/models/nutrition_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -114,6 +119,53 @@ void main() {
     await tester.pumpAndSettle();
     await capture('add-food');
     final navigator = Navigator.of(tester.element(find.byType(FitLifeHome)));
+    navigator.pop();
+    await tester.pumpAndSettle();
+    final repository = DiaryRepository.withLoader();
+    await SavedMealsRepository(repository).save(
+      SavedMeal(
+        id: 'preview',
+        name: 'Утренний завтрак',
+        items: entries.take(2).toList(),
+      ),
+    );
+    navigator.push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SavedMealsPage(
+          repository: SavedMealsRepository(repository),
+          day: now,
+          initialMeal: 'Завтрак',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await capture('saved-meals');
+    await tester.tap(find.text('Выбрать порцию'));
+    await tester.pumpAndSettle();
+    await capture('meal-portion');
+    navigator.pop();
+    await tester.pumpAndSettle();
+    navigator.pop();
+    await tester.pumpAndSettle();
+    for (final data in [
+      (12, 84.0),
+      (8, 83.6),
+      (5, 83.8),
+      (2, 83.2),
+      (0, 83.1),
+    ]) {
+      await WeightRepository(repository).save(
+        WeightEntry(DateTime(now.year, now.month, now.day - data.$1), data.$2),
+      );
+    }
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            WeightHistoryPage(repository: WeightRepository(repository)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await capture('weight-history');
     navigator.pop();
     await tester.pumpAndSettle();
     navigator.push<void>(

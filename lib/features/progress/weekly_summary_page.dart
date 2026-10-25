@@ -214,7 +214,7 @@ class _WeeklySummaryPageState extends State<WeeklySummaryPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Клетчатка ${summary.average((day) => day.fiber)!.round()} г',
+                      'Клетчатка ${summary.average((day) => day.fiber)!.round()} г${summary.hasFiberGaps ? ' · неполные данные' : ''}',
                       style: const TextStyle(color: muted),
                     ),
                   ],

@@ -1,5 +1,26 @@
 # FitLife architecture
 
+## Additions in 4.6
+
+`features/saved_meals/` stores independent ingredient snapshots in `saved_meals_v1`.
+Portion scaling happens before one serialized diary batch update, using a stable
+operation ID per open confirmation screen. Editing/deleting a template cannot
+modify previously logged meals. Previous-day copies use local calendar arithmetic.
+
+`features/progress/weight_history*` stores one measurement per date in a single
+`weight_history_v1` JSON key. The old undated `weight` is shown only before the
+first history save; no date or default measurement is fabricated. Historical
+insertion cannot replace the latest measurement. Both repositories share the
+existing write queue and recovery-backup rules.
+
+`food_catalog_import.dart` validates authorized local exports per 100g. A failed
+extra catalogue leaves the reference database available. Missing fiber is marked
+in persisted food snapshots; no micronutrients are invented. No scraper is shipped.
+
+`ios/` uses the SDK's Swift/UIScene/SPM template, camera/photo purpose strings
+and Keychain entitlements. Native simulator integration is separate from ordinary
+widget tests. App Store signing/publication remains owner-dependent.
+
 ## Active application
 
 `lib/main.dart` is the production entry point. `FitLifeAppFrame` owns the single

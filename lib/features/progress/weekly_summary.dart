@@ -23,11 +23,13 @@ class SummaryDay {
   double get fat => entries.fold(0, (sum, entry) => sum + entry.fat);
   double get carbs => entries.fold(0, (sum, entry) => sum + entry.carbs);
   double get fiber => entries.fold(0, (sum, entry) => sum + entry.fiber);
+  bool get hasFiberGaps => entries.any((e) => !e.food.hasKnownFiber);
 }
 
 class WeeklySummary {
   const WeeklySummary(this.days);
   final List<SummaryDay> days;
+  bool get hasFiberGaps => days.any((day) => day.hasFiberGaps);
   List<SummaryDay> get logged => days.where((day) => day.hasFood).toList();
   double? average(double Function(SummaryDay) value) {
     final values = logged;
@@ -75,6 +77,11 @@ class WeeklySummary {
       'FitLife: ${summaryDate(days.first.date)}–${summaryDate(days.last.date)}.${days.last.date.year}\n',
     );
     text.writeln('Дней с записями о еде: ${logged.length} из ${days.length}.');
+    if (hasFiberGaps) {
+      text.writeln(
+        'Клетчатка: сумма неполная, не во всех продуктах есть данные.',
+      );
+    }
     final kcal = average((day) => day.calories);
     if (kcal != null) {
       text.writeln(

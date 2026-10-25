@@ -86,6 +86,8 @@ void main() {
     await tester.tap(find.text('Питание').last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byTooltip('Изменить порцию'), 200);
+    await tester.ensureVisible(find.byTooltip('Изменить порцию'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Изменить порцию'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '250');
@@ -147,6 +149,8 @@ void main() {
       await tester.tap(find.text('Питание').last);
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byTooltip('Изменить порцию'), 200);
+      await tester.ensureVisible(find.byTooltip('Изменить порцию'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Изменить порцию'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '200');
@@ -160,6 +164,8 @@ void main() {
       await tester.tap(find.text('Питание').last);
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byTooltip('Изменить порцию'), 200);
+      await tester.ensureVisible(find.byTooltip('Изменить порцию'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Изменить порцию'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Удалить'));

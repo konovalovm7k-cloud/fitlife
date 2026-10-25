@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/diary_item.dart';
 import '../../core/models/nutrition_goal_settings.dart';
 import 'diary_preferences.dart';
+import '../../features/progress/weight_history.dart';
 import 'preferences_queue.dart';
 
 class SavedSettings {
@@ -24,7 +25,7 @@ class SavedSettings {
   final List<String> recent;
   final NutritionGoalSettings goals;
   final double water;
-  final double weight;
+  final double? weight;
   final bool recoveredData;
 }
 
@@ -56,7 +57,8 @@ class SettingsRepository {
       );
     }
     final water = await _number(store, 'water_$dayKey', 0, allowZero: true);
-    final weight = await _number(store, 'weight', 104.2);
+    final weights = await WeightHistory.read(store);
+    final weight = weights.latest;
     return SavedSettings(
       diary: diary,
       foods: foods,

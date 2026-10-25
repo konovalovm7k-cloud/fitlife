@@ -37,7 +37,7 @@ class FitLifeState {
     this.status = FitLifeLoadStatus.loading,
     this.goals = const NutritionGoalSettings(),
     this.water = 0,
-    this.weight = 104.2,
+    this.weight,
     this.recoveredData = false,
     List<DiaryItem> diary = const [],
     List<FoodItem> customFoods = const [],
@@ -53,7 +53,7 @@ class FitLifeState {
   final FitLifeLoadStatus status;
   final NutritionGoalSettings goals;
   final double water;
-  final double weight;
+  final double? weight;
   final bool recoveredData;
   final List<DiaryItem> diary;
   final List<FoodItem> customFoods;

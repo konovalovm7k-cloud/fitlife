@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'preferences_queue.dart';
 
 /// Reads existing diary keys without letting one damaged record block startup.
 class DiaryPreferences {
@@ -87,6 +88,18 @@ class DiaryPreferences {
       rethrow;
     }
   }
+
+  Future<void> writeString(String key, String value) =>
+      PreferencesQueue.checked(preferences.setString(key, value));
+  Future<void> writeNumber(String key, double value) async {
+    if (!value.isFinite || value < 0) {
+      throw const FormatException('Invalid number');
+    }
+    await PreferencesQueue.checked(preferences.setDouble(key, value));
+  }
+
+  Future<void> writeList(String key, List<String> value) =>
+      PreferencesQueue.checked(preferences.setStringList(key, value));
 
   Future<void> preserveValue(String key, Object raw) async {
     recoveredData = true;

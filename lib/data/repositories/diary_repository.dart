@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,18 +12,36 @@ String diaryDateKey(DateTime date) => DiaryDate.key(date);
 
 /// Serializes read/modify/write operations from manual, catalogue and photo entry.
 /// Entry IDs make a retried save replace its own record without losing others.
-class DiaryRepository {
-  DiaryRepository(this.preferences);
+String newDiaryEntryId() {
+  final random = Random.secure();
+  return List.generate(
+    16,
+    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
+}
 
-  final SharedPreferences preferences;
+class DiaryRepository {
+  DiaryRepository(SharedPreferences preferences)
+    : _load = (() async => preferences);
+  DiaryRepository.withLoader({
+    Future<SharedPreferences> Function()? preferencesLoader,
+  }) : _load = preferencesLoader ?? SharedPreferences.getInstance;
+  final Future<SharedPreferences> Function() _load;
+
+  Future<T> run<T>(Future<T> Function(DiaryPreferences) operation) async {
+    final preferences = await _load();
+    return PreferencesQueue.run(
+      preferences,
+      () => operation(DiaryPreferences(preferences)),
+    );
+  }
 
   Future<List<DiaryItem>> update(
     String key,
     List<DiaryItem> Function(List<DiaryItem>) change,
-  ) => PreferencesQueue.run(preferences, () async {
-    final current = await DiaryPreferences(
-      preferences,
-    ).readRecords(key, DiaryItem.fromJson);
+  ) => run((store) async {
+    final preferences = store.preferences;
+    final current = await store.readRecords(key, DiaryItem.fromJson);
     final updated = change(current);
     for (final entry in updated) {
       DiaryItem.fromJson(entry.toJson());
@@ -47,4 +66,7 @@ class DiaryRepository {
         if (index < 0) return [...current, entry];
         return [...current]..[index] = entry;
       });
+
+  Future<List<DiaryItem>> upsertDay(DateTime day, DiaryItem entry) =>
+      upsert('diary_${DiaryDate.key(day)}', entry);
 }
