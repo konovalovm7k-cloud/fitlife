@@ -222,6 +222,7 @@ class FitLifeController extends ChangeNotifier {
     DateTime day,
     NutritionFoodRecord record, {
     required double grams,
+    String? entryId,
     required String meal,
     required String time,
   }) async {
@@ -240,7 +241,13 @@ class FitLifeController extends ChangeNotifier {
     if (_disposed) return;
     await saveEntry(
       day,
-      DiaryItem(id: newId(), meal: meal, food: food, grams: grams, time: time),
+      DiaryItem(
+        id: entryId ?? newId(),
+        meal: meal,
+        food: food,
+        grams: grams,
+        time: time,
+      ),
     );
   }
 

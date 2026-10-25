@@ -127,3 +127,43 @@ after 30 days via scheduled cleanup. Read replication is not enabled.
 The server is intended for an invited small group. Runtime tests use real
 workerd/D1 with a mock provider; real Gemini activation requires the owner's
 accounts, key and HTTPS deployment. See `server/SETUP_RU.md`.
+
+## Text Meals And Weekly Overview (4.5)
+
+`text_meal_page.dart` sends only the explicitly consented description through
+`POST /v1/analyze-text`. It shares photo authentication, quota reservations,
+validated per-100g output, editable review and batch persistence. Additive
+`textEstimate` metadata distinguishes text estimates without migrating old keys.
+No diary, weight or profile is uploaded. A disconnected or offline user can still
+use the existing local catalogue and diary.
+
+`PhotoConnectionStore` optionally bootstraps a private build-time connection into
+encrypted Android storage. Public builds have no defaults. Explicit disconnect
+persists across relaunches; restoration is a separate user action. This is an
+extractable personal FitLife invitation, not a way to hide a provider key in APK.
+Personal builds and their define files must never be published in Actions/Git.
+
+`lib/features/progress/` reads seven existing local calendar-date diary/water keys.
+Missing or damaged food days are excluded from averages and clearly identified.
+Historical days are not compared against today's goals. The report is generated
+locally and copied only on request. See `JOURNABLE_UX_REVIEW.md` for product scope.
+
+## Save Integrity (4.5.1)
+
+`diary_repository.dart` serializes active-app writes within the Flutter isolate.
+Manual additions, catalogue additions and AI batches read the current stored day
+before applying an ID-based change; they no longer write a stale screen snapshot.
+The queue is not released merely because a UI timeout expires. A late native write
+finishes before a retry, whose stable operation ID prevents duplicate entries.
+
+Native write failures (false or exception) propagate; the cache is reloaded after
+failure. Damaged originals must be backed up successfully before replacement.
+Entry editing/deletion applies to the immutable target day and current stored ID.
+Save dialogs retain entered values until confirmation from storage, and water is
+incremented from the persisted value rather than an optimistic screen counter.
+
+This remains local SharedPreferences, not a multi-process database or a multi-key
+ACID transaction. A meal is embedded in its day even if updating recent products
+fails; retrying that same screen repairs the secondary list without duplicating
+the meal. Legacy goal keys are written sequentially; an interrupted multi-key save
+can be partial and must be retried. No storage format migration is required.

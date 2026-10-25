@@ -13,14 +13,11 @@ Future<List<DiaryItem>> savePhotoMeal(
       !photoMeals.contains(meal.meal)) {
     throw const FormatException('Invalid photo meal');
   }
-  final prefs = await (preferencesLoader ?? SharedPreferences.getInstance)();
-  final date =
-      '${meal.day.year}-${meal.day.month.toString().padLeft(2, '0')}-${meal.day.day.toString().padLeft(2, '0')}';
-  final key = 'diary_$date';
   final entries = <DiaryItem>[];
+  final kind = meal.source == MealEstimateSource.text ? 'text' : 'photo';
   for (var i = 0; i < meal.items.length; i++) {
     final item = meal.items[i];
-    final id = 'photo_${meal.id}_$i';
+    final id = '${kind}_${meal.id}_$i';
     final p = item.nutrition;
     entries.add(
       DiaryItem(
@@ -37,16 +34,18 @@ Future<List<DiaryItem>> savePhotoMeal(
           fat: p.fat,
           carbs: p.carbs,
           fiber: p.fiber,
-          isPhotoEstimate: true,
+          isPhotoEstimate: meal.source == MealEstimateSource.photo,
+          isTextEstimate: meal.source == MealEstimateSource.text,
         ),
       ),
     );
   }
-  final prefix = 'photo_${meal.id}_';
+  final prefix = '${kind}_${meal.id}_';
   // Replace the entire stable-ID batch on retry, including any edits/removals
   // after a failed write or a timeout whose disk operation completed late.
-  return DiaryRepository(prefs).update(
-    key,
+  final prefs = await (preferencesLoader ?? SharedPreferences.getInstance)();
+  return DiaryRepository(prefs).updateDay(
+    meal.day,
     (current) => [
       ...current.where((entry) => !entry.id.startsWith(prefix)),
       ...entries,

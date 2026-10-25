@@ -34,6 +34,7 @@ class ReleaseSmoke:
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
         self.screen = ""
+        self.launcher_dismissals = 0
 
     def adb(self, *args, binary=False):
         result = subprocess.run(
@@ -58,15 +59,51 @@ class ReleaseSmoke:
         deadline = time.monotonic() + 35
         while time.monotonic() < deadline:
             nodes = self.read_screen()
+            if self.dismiss_emulator_launcher_anr(nodes):
+                continue
             if all(any(label in self.label(n) for n in nodes) for label in labels):
                 return nodes
             time.sleep(1)
         raise AssertionError(f"Release screen did not show {labels!r} within 35s")
 
-    def tap(self, label):
-        nodes = self.wait_for(label)
+    def dismiss_emulator_launcher_anr(self, nodes):
+        # A fresh overloaded CI image can show a launcher ANR over the running app.
+        # Never dismiss FitLife/unknown ANRs or disable Android's ANR reporting.
+        title = next((n for n in nodes if n.get("package") == "android"
+                      and n.get("resource-id") == "android:id/alertTitle"), None)
+        if title is None or title.get("text") != "Pixel Launcher isn't responding":
+            return False
+        if self.launcher_dismissals:
+            raise AssertionError("Repeated Pixel Launcher ANR: emulator is unhealthy")
+        close = next((n for n in nodes if n.get("package") == "android"
+                      and n.get("resource-id") == "android:id/aerr_close"), None)
+        if close is None:
+            raise AssertionError("Launcher ANR has no verified close button")
+        self.capture("emulator-launcher-anr")
+        self.launcher_dismissals += 1
+        self.tap_node(close)
+        print("Recorded and closed one Pixel Launcher ANR; FitLife checks remain required")
+        return True
+
+    def tap(self, label, *, scroll=False):
+        nodes = self.scroll_to(label) if scroll else self.wait_for(label)
         node = next(n for n in nodes if label in self.label(n))
         self.tap_node(node)
+
+    def scroll_to(self, label):
+        sizes = re.findall(r"(\d+)x(\d+)", self.adb("shell", "wm", "size"))
+        if not sizes:
+            raise AssertionError("Cannot determine emulator screen size")
+        width, height = map(int, sizes[-1])
+        for _ in range(10):
+            nodes = self.read_screen()
+            if self.dismiss_emulator_launcher_anr(nodes):
+                continue
+            if any(label in self.label(node) for node in nodes):
+                return nodes
+            self.adb("shell", "input", "swipe", str(width // 2), str(height * 3 // 4),
+                     str(width // 2), str(height // 3), "350")
+        raise AssertionError(f"Could not scroll to {label!r}")
 
     def tap_field(self, index):
         fields = [n for n in self.read_screen() if n.get("class") == "android.widget.EditText"]
@@ -119,25 +156,32 @@ class ReleaseSmoke:
             if any(message in logs for message in failures):
                 raise AssertionError(f"Native/release error detected; see {name}-logcat.txt")
 
-    def run(self, apk):
+    def run(self, apk, expect_auto_connection=False):
         self.adb("install", "-r", str(Path(apk).resolve()))
         try:
             self.launch()
             self.capture("first-launch")
-            self.wait_for(WATER)
+            if expect_auto_connection:
+                self.tap(CAMERA)
+                self.tap(CONNECT)
+                self.wait_for("https://fitlife-photo.konovalov-m7k.workers.dev")
+                self.capture("automatic-connection")
+                self.adb("shell", "input", "keyevent", "4")
+                self.tap("\u0421\u0435\u0433\u043e\u0434\u043d\u044f")
+            self.scroll_to(WATER)
             # Use an increment that remains deterministic if re-run on this AVD.
             nodes = self.read_screen()
             if not any(SAVED_WATER in self.label(node) for node in nodes):
-                self.tap(WATER)
-            self.wait_for(SAVED_WATER)
+                self.tap(WATER, scroll=True)
+            self.scroll_to(SAVED_WATER)
             time.sleep(1)
             self.capture("saved-water")
             self.launch()
-            self.wait_for(SAVED_WATER)
+            self.scroll_to(SAVED_WATER)
             self.capture("cold-relaunch")
             self.adb("install", "-r", str(Path(apk).resolve()))
             self.launch()
-            self.wait_for(SAVED_WATER)
+            self.scroll_to(SAVED_WATER)
             self.capture("update-relaunch")
             self.tap("Профиль")
             self.tap("Настроить цели")
@@ -211,8 +255,9 @@ def main():
     parser.add_argument("--adb", default="adb")
     parser.add_argument("--serial", default=os.environ.get("ANDROID_SERIAL", "emulator-5554"))
     parser.add_argument("--output", default="build/release-smoke")
+    parser.add_argument("--expect-auto-connection", action="store_true")
     args = parser.parse_args()
-    ReleaseSmoke(args.adb, args.serial, args.output).run(args.apk)
+    ReleaseSmoke(args.adb, args.serial, args.output).run(args.apk, args.expect_auto_connection)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ import 'core/nutrition/nutrition_catalog_page.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
 import 'features/photo_analysis/photo_settings_page.dart';
+import 'features/photo_analysis/text_meal_page.dart';
+import 'features/progress/weekly_summary_page.dart';
 
 export 'core/models/diary_item.dart';
 export 'data/built_in_foods.dart';
@@ -312,6 +314,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 14),
+        _quickMealActions(),
+        const SizedBox(height: 16),
         DayNutritionSummary(calories: calories, target: kcalTarget),
         const SizedBox(height: 16),
         Row(
@@ -421,6 +425,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
       children: [
         _header('Питание', 'Поиск, избранное и последние продукты'),
+        const SizedBox(height: 14),
+        _quickMealActions(),
         const SizedBox(height: 12),
         _card(
           Column(
@@ -482,11 +488,118 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     );
   }
 
+  Widget _quickMealActions() => _card(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'БЫСТРАЯ ЗАПИСЬ',
+          style: TextStyle(
+            fontSize: 10,
+            color: muted,
+            letterSpacing: 1.4,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _entryAction(
+              'Описать еду',
+              Icons.edit_note_rounded,
+              _describeMeal,
+              'quick-text',
+            ),
+            const SizedBox(width: 8),
+            _entryAction(
+              'Фото блюда',
+              Icons.photo_camera_outlined,
+              () => setState(() => tab = 2),
+              'quick-photo',
+            ),
+            const SizedBox(width: 8),
+            _entryAction(
+              'Найти продукт',
+              Icons.search,
+              _addFood,
+              'quick-search',
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _entryAction(
+    String label,
+    IconData icon,
+    VoidCallback action,
+    String key,
+  ) => Expanded(
+    child: InkWell(
+      key: Key(key),
+      onTap: action,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        decoration: BoxDecoration(
+          color: mint.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: greenDark),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _describeMeal() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TextMealPage(
+          day: day,
+          meal: _suggestedMeal(),
+          onSave: _savePhotoMeal,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showWeeklyReport() async {
+    final selected = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute(
+        builder: (_) => WeeklySummaryPage(
+          end: day,
+          preferencesLoader: widget.preferencesLoader,
+        ),
+      ),
+    );
+    if (!mounted || selected == null || DateUtils.isSameDay(selected, day)) {
+      return;
+    }
+    setState(() => tab = 0);
+    await _controller.selectDay(selected);
+  }
+
   Widget _progressPage() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
       children: [
         _header('Прогресс', 'Устойчивость важнее идеального дня'),
+        const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: _showWeeklyReport,
+          icon: const Icon(Icons.calendar_view_week_outlined),
+          label: const Text('Обзор 7 дней'),
+        ),
         const SizedBox(height: 14),
         _card(
           Column(
@@ -796,7 +909,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  '${item.food.isPhotoEstimate ? 'Оценка по фото · ' : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
+                  '${item.food.isTextEstimate
+                      ? 'AI-оценка по описанию · '
+                      : item.food.isPhotoEstimate
+                      ? 'Оценка по фото · '
+                      : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
                 ),
                 trailing: IconButton(
                   tooltip: 'Изменить порцию',
@@ -862,12 +979,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         builder: (_) => NutritionCatalogPage(
           initialDay: _controller.nutritionDay,
           dayLabel: _dateLabel(),
-          onAdd: (entry) async {
+          onAdd: (entry, id) async {
             if (!mounted) return;
             await _controller.addCatalogFood(
               targetDay,
               entry.food,
               grams: entry.grams,
+              entryId: id,
               meal: _suggestedMeal(),
               time: TimeOfDay.fromDateTime(_controller.now).format(context),
             );

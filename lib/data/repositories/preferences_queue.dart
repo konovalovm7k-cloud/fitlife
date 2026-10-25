@@ -16,7 +16,11 @@ class PreferencesQueue {
         return await operation();
       } catch (_) {
         // Native write failures can leave an optimistic value in the cache.
-        await preferences.reload();
+        try {
+          await preferences.reload();
+        } catch (_) {
+          // Keep the original persistence error if recovery also fails.
+        }
         rethrow;
       } finally {
         if (identical(_pending, tail)) _pending = null;

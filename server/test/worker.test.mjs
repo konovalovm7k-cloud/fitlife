@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES } from '../src/worker.mjs';
+import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES, schema } from '../src/worker.mjs';
 
 const token = 'a'.repeat(43);
 const food = { name: 'Рис варёный', grams: 150, kcal: 130, protein: 2.7,
@@ -30,7 +30,7 @@ class SqliteD1 {
 async function setup() {
   const DB = new SqliteD1();
   DB.db.prepare('INSERT INTO users(id, token_hash) VALUES (?, ?)').run('alice', await hashToken(token));
-  return { DB, GEMINI_API_KEY: 'test-secret', GEMINI_MODEL: 'gemini-3.8-flash' };
+  return { DB, GEMINI_API_KEY: 'test-secret', GEMINI_MODEL: 'gemini-3.5-flash-lite' };
 }
 function provider(result = meal, status = 200) {
   return async () => Response.json({ candidates: [{ finishReason: 'STOP',
@@ -41,7 +41,7 @@ test('authenticated photo reaches Gemini with schema and returns validated estim
   let calls = 0;
   const response = await handle(request(), env, async (url, options) => {
     calls++;
-    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     assert.equal(options.headers['x-goog-api-key'], 'test-secret');
     assert.equal(options.redirect, 'manual');
     const body = JSON.parse(options.body);
@@ -114,6 +114,21 @@ test('provider failures are sanitized and consume one reservation without auto r
   assert.equal(calls, 1);
   assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 1);
 });
+test('provider errors expose only safe categories, never response bodies or credentials', async () => {
+  for (const [status, code] of [
+    [400, 'provider_request'], [401, 'provider_auth'], [403, 'provider_forbidden'],
+    [404, 'provider_model'], [302, 'provider_unavailable'], [500, 'provider_unavailable'],
+  ]) {
+    let calls = 0;
+    const response = await handle(request(), await setup(), async () => {
+      calls++;
+      return new Response('private body with test-secret and photo data', { status });
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), { error: code });
+    assert.equal(calls, 1);
+  }
+});
 test('invalid, blocked and truncated provider results never become food', async () => {
   for (const fetcher of [provider({ ...meal, items: [{ ...food, kcal: -1 }] }),
     async () => Response.json({ candidates: [{ finishReason: 'MAX_TOKENS' }] }),
@@ -144,4 +159,45 @@ test('health, method, missing config and DB failures do not disclose internals',
   const response = await handle(request(), { DB: {}, GEMINI_API_KEY: 'x', GEMINI_MODEL: 'bad/path' });
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'configuration' });
+});
+
+function textRequest(text = 'Рис варёный 150 г', id = 'a'.repeat(32), body) {
+  return new Request('https://fitlife.test/v1/analyze-text', { method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Request-Id': id },
+    body: body ?? JSON.stringify({ text }),
+  });
+}
+test('text descriptions use the same strict nutrition schema without inventing an image', async () => {
+  const result = await handle(textRequest(), await setup(), async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.deepEqual(body.contents[0].parts, [{ text: 'Рис варёный 150 г' }]);
+    assert.ok(body.systemInstruction.parts[0].text.includes('text meal description'));
+    assert.deepEqual(body.generationConfig.responseSchema, schema);
+    assert.equal(body.generationConfig.responseMimeType, 'application/json');
+    return provider()();
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual((await result.json()).items, meal.items);
+});
+test('invalid descriptions are rejected before quota and provider calls', async () => {
+  const env = await setup();
+  let calls = 0;
+  const fetcher = async () => { calls++; return provider()(); };
+  for (const body of ['{}', 'null', '[]', 'bad-json', JSON.stringify({ text: '' }),
+    JSON.stringify({ text: 'я'.repeat(2001) }), JSON.stringify({ text: 'еда\u0000' }),
+    JSON.stringify({ text: 'еда', extra: 'bad' }), new Uint8Array([195, 40])]) {
+    assert.equal((await handle(textRequest('', 'a'.repeat(32), body), env, fetcher)).status, 400);
+  }
+  assert.equal((await handle(textRequest('', 'a'.repeat(32), 'x'.repeat(16385)), env, fetcher)).status, 413);
+  assert.equal(calls, 0);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 0);
+});
+test('photo and text share the per-user quota and duplicate-request protection', async () => {
+  const env = await setup();
+  env.USER_DAILY_LIMIT = '2';
+  assert.equal((await handle(request(), env, provider())).status, 200);
+  assert.equal((await handle(textRequest(), env, provider())).status, 429);
+  assert.equal((await handle(textRequest('Яблоко 180 г', 'b'.repeat(32)), env, provider())).status, 200);
+  assert.equal((await handle(request({ id: 'c'.repeat(32) }), env, provider())).status, 429);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 2);
 });

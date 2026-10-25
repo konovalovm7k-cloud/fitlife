@@ -62,6 +62,9 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Test Android smoke harness
+        run: python3 -m unittest discover -s tool -p 'test_*.py'
+
       - name: Configure release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.FITLIFE_KEYSTORE_BASE64 }}
