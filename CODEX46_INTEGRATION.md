@@ -48,8 +48,14 @@ records. A downloaded USDA source is not yet a validated imported database.
   `190fa5f38b0b27b3c197459b60e34dbaa2964a38682bdb655363e2ca6386b431`.
 - APK SHA-256
   `c95dca6e3bf27ddc5472d1a0e6c37fd25d07946eeef363881332f5f0409da749`.
-- Native Android 15 upgrade and saved-meal/weight smoke results are recorded
-  after execution. `tool/android_features_smoke.py` follows the existing native
+- Native Android 15 upgrade 4.5.2 → 4.6.1 passed without clearing data.
+  Dated weight 83.5 kg, template of 100 g egg, half portion 50 g / 79 kcal,
+  total 236 kcal and cold relaunch passed on the signed release APK.
+  The harness scrolls exact controls clear of the floating add button and
+  checks accessible text instead of field labels Android does not expose.
+  A current-day empty diary is seeded if the two scripts cross midnight.
+  All 11 Python tool tests pass, including the obscured-control regression.
+  `tool/android_features_smoke.py` follows the existing native
   release smoke in CI, checking dated weight, saved template, half portion and
   cold relaunch. All smoke runs use a separate disposable emulator.
 

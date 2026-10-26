@@ -6,10 +6,30 @@ requests, real invitations, data resets or physical-device access are used.
 
 import argparse
 import os
+import re
 from android_release_smoke import ReleaseSmoke
 
 
 class FeaturesSmoke(ReleaseSmoke):
+    def tap_scrolled_exact(self, label):
+        # Flutter may expose a partially visible item under the floating add
+        # button. Bring the exact enabled control into the unobscured viewport.
+        width, height = map(int, re.findall(
+            r"(\d+)x(\d+)", self.adb("shell", "wm", "size"))[-1])
+        for _ in range(12):
+            for node in self.read_screen():
+                if (self.label(node).strip() != label
+                        or node.get("enabled") != "true"
+                        or node.get("clickable") != "true"):
+                    continue
+                bounds = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+                if len(bounds) == 4 and height * .1 <= bounds[1] < bounds[3] <= height * .7:
+                    self.tap_node(node)
+                    return
+            self.adb("shell", "input", "swipe", str(width // 2), str(height * 2 // 3),
+                     str(width // 2), str(height // 3), "350")
+        raise AssertionError(f"No unobscured enabled control: {label!r}")
+
     def set_number(self, value):
         fields = [n for n in self.read_screen()
                   if n.get("class") == "android.widget.EditText"]
@@ -38,8 +58,17 @@ class FeaturesSmoke(ReleaseSmoke):
 
             self.launch()
             self.tap("Питание")
-            self.tap("Сохранить блюдо", scroll=True)
-            self.wait_for("Порций во всём составе")
+            # The local upgrade run may cross midnight between the two scripts.
+            # Seed only an empty current day, without clearing any saved data.
+            nodes = self.read_screen()
+            if any(self.label(n).strip().startswith("0 ккал\n") for n in nodes):
+                self.tap("Добавить еду")
+                self.tap("Яйцо")
+                self.wait_for("Выбрано: Яйцо")
+                self.tap_exact("Добавить")
+            self.wait_for("157 ккал")
+            self.tap_scrolled_exact("Сохранить блюдо")
+            self.wait_for("157 ккал на порцию", "Изменить ингредиент")
             self.tap("Сохранить в мои блюда", scroll=True)
             self.launch()
             self.tap("Питание")
@@ -47,7 +76,7 @@ class FeaturesSmoke(ReleaseSmoke):
             self.wait_for("157 ккал", "Яйцо")
             self.capture("saved-meals-relaunch")
             self.tap("Выбрать порцию", scroll=True)
-            self.wait_for("Количество порций")
+            self.wait_for("Добавить блюдо в дневник")
             self.tap("0.5×")
             self.wait_for("79 ккал")
             self.tap("Добавить блюдо в дневник", scroll=True)
