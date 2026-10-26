@@ -41,6 +41,10 @@ class SourceSmoke(FeaturesSmoke):
                 self.field(key, value)
             self.tap('Подтвердить источник и порцию', scroll=True)
             self.wait_for('СОСТАВ С ЭТИКЕТКИ', '196 ккал', 'Клетчатка: состав неполный')
+            # Keep this fixture separate from the legacy breakfast used by the
+            # upgrade harness, independent of the runner's current hour.
+            self.tap('Приём пищи')
+            self.tap_exact('Перекус')
             self.capture('source-review')
             self.tap('Подтвердить и сохранить', scroll=True)
             self.launch()

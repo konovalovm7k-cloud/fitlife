@@ -27,6 +27,7 @@ import 'features/progress/weight_history_page.dart';
 import 'features/saved_meals/saved_meals.dart';
 import 'features/saved_meals/saved_meal_editor.dart';
 import 'features/saved_meals/saved_meals_page.dart';
+import 'features/satiety/satiety_page.dart';
 
 export 'core/models/diary_item.dart';
 export 'data/built_in_foods.dart';
@@ -991,6 +992,18 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   onPressed: () => _editDiaryItem(item),
                 ),
               ),
+            ),
+            TextButton.icon(
+              key: Key('satiety-$meal'),
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SatietyPage(items: List.unmodifiable(items), meal: meal),
+                ),
+              ),
+              icon: const Icon(Icons.restaurant_menu),
+              label: Text('Умная сытость · $meal'),
             ),
           ],
         ),
