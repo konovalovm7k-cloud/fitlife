@@ -24,8 +24,10 @@ class TodaySmoke(FeaturesSmoke):
             self.tap_exact("Добавить")
             self.launch()
             self.tap("Питание")
-            self.scroll_to("Куриная грудка")
-            self.wait_for("120 ккал")
+            # The same name also appears in the recent-food chip. Verify the
+            # persisted diary row, including its portion, below that section.
+            self.scroll_to("100 г · 120 ккал")
+            self.wait_for("Куриная грудка", "100 г · 120 ккал")
             self.capture("today-action-relaunch")
             print("PASS: Today nutrients, real weight, supportive companion and guidance-to-diary save survive relaunch")
         except Exception:
