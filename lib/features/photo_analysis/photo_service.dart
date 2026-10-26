@@ -161,8 +161,8 @@ class PhotoService {
     try {
       return await (() async {
         final endpoint = source == MealEstimateSource.text
-            ? connection.endpoint.replace(path: '/v1/analyze-text')
-            : connection.endpoint;
+            ? connection.endpoint.replace(path: '/v2/identify-text')
+            : connection.endpoint.replace(path: '/v2/identify');
         final request = http.Request('POST', endpoint)
           ..followRedirects = false
           ..headers.addAll({
@@ -189,6 +189,8 @@ class PhotoService {
                   : 'Не удалось распознать еду. Попробуйте снимок ближе или ручной ввод.',
             429 =>
               'Лимит распознаваний исчерпан. Попробуйте позже или добавьте еду вручную.',
+            404 =>
+              'Сервер ещё не поддерживает проверку состава. Добавьте еду вручную или обновите сервер распознавания.',
             504 => 'Сервис не успел ответить. Повторите позже.',
             _ =>
               'Сервис временно недоступен. Проверьте адрес сервера или повторите позже.',

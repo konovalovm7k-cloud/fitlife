@@ -13,7 +13,6 @@ import 'package:fitlife/features/progress/weight_history_page.dart';
 import 'package:fitlife/features/saved_meals/saved_meals.dart';
 import 'package:fitlife/features/saved_meals/saved_meals_page.dart';
 import 'package:fitlife/data/repositories/diary_repository.dart';
-import 'package:fitlife/core/models/nutrition_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -195,24 +194,11 @@ void main() {
                 name: 'Рис варёный',
                 grams: 180,
                 confidence: 'medium',
-                nutrition: NutritionProfile(
-                  kcal: 130,
-                  protein: 2.7,
-                  fat: 0.3,
-                  carbs: 28,
-                  fiber: 0.4,
-                ),
               ),
               PhotoFood(
                 name: 'Курица запечённая',
                 grams: 140,
                 confidence: 'high',
-                nutrition: NutritionProfile(
-                  kcal: 165,
-                  protein: 31,
-                  fat: 3.6,
-                  carbs: 0,
-                ),
               ),
             ],
             warnings: const ['Уточните количество масла и соуса.'],

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../app/fitlife_theme.dart';
-import '../../app/widgets/value_editor.dart';
 import '../../core/models/nutrition_profile.dart';
+import 'food_source_page.dart';
 import 'photo_models.dart';
 
 class PhotoReviewPage extends StatefulWidget {
@@ -25,65 +25,31 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
   late String _meal = widget.initialMeal;
   bool _saving = false;
   String? _error;
+  bool get _complete =>
+      _items.isNotEmpty && _items.every((f) => f.source != null);
   Future<void> _edit(int? index) async {
-    final item = index == null ? null : _items[index];
-    final p =
-        item?.nutrition ??
-        const NutritionProfile(kcal: 0, protein: 0, fat: 0, carbs: 0, fiber: 0);
-    final result = await showDialog<ValueEditResult>(
-      context: context,
-      builder: (_) => ValueEditorDialog(
-        title: 'Продукт и порция',
-        initialName: item?.name ?? '',
-        allowDelete: item != null,
-        fields: [
-          NumberFieldSpec(
-            'Вес порции, г',
-            item?.grams ?? 100,
-            min: 1,
-            max: 3000,
-          ),
-          NumberFieldSpec('Ккал на 100 г', p.kcal, max: 1000),
-          NumberFieldSpec('Белки на 100 г', p.protein, max: 100),
-          NumberFieldSpec('Жиры на 100 г', p.fat, max: 100),
-          NumberFieldSpec('Углеводы на 100 г', p.carbs, max: 100),
-          NumberFieldSpec('Клетчатка на 100 г', p.fiber, max: 100),
-        ],
-        validate: (v) => v[2] + v[3] + v[4] > 105
-            ? 'Проверьте КБЖУ: сумма превышает 100 г.'
-            : null,
+    final result = await Navigator.push<SourcedFoodEdit>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            FoodSourcePage(food: index == null ? null : _items[index]),
       ),
     );
     if (!mounted || result == null) return;
     setState(() {
       if (result.deleted) {
         _items.removeAt(index!);
-        return;
-      }
-      final v = result.values;
-      final updated = PhotoFood(
-        name: result.name!,
-        grams: v[0],
-        nutrition: NutritionProfile(
-          kcal: v[1],
-          protein: v[2],
-          fat: v[3],
-          carbs: v[4],
-          fiber: v[5],
-        ),
-        confidence: item?.confidence ?? 'low',
-      );
-      if (index == null) {
-        _items.add(updated);
+      } else if (index == null) {
+        _items.add(result.food!);
       } else {
-        _items[index] = updated;
+        _items[index] = result.food!;
       }
       _error = null;
     });
   }
 
   Future<void> _save() async {
-    if (_saving || _items.isEmpty) return;
+    if (_saving || !_complete) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -103,8 +69,7 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
       if (mounted) {
         setState(
           () => _error =
-              'Не удалось сохранить в дневник. '
-              'Ваши правки остались на этом экране. Нажмите ещё раз.',
+              'Не удалось сохранить в дневник. Ваши правки остались на этом экране. Нажмите ещё раз.',
         );
       }
     } finally {
@@ -114,9 +79,10 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final kcal = _items.fold(0.0, (sum, f) => sum + f.calories);
-    double total(double Function(NutritionProfile) get) =>
-        _items.fold(0.0, (sum, f) => sum + get(f.nutrition) * f.grams / 100);
+    double total(double Function(NutritionProfile) get) => _items.fold(
+      0.0,
+      (sum, f) => sum + (f.portion == null ? 0 : get(f.portion!)),
+    );
     final date =
         '${widget.day.day.toString().padLeft(2, '0')}.${widget.day.month.toString().padLeft(2, '0')}.${widget.day.year}';
     return PopScope(
@@ -136,9 +102,11 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.analysis.source == MealEstimateSource.text
-                        ? 'ОЦЕНКА ПО ОПИСАНИЮ'
-                        : 'ОЦЕНКА ПО ФОТО',
+                    widget.analysis.source == MealEstimateSource.manual
+                        ? 'СОСТАВ С ЭТИКЕТКИ'
+                        : widget.analysis.source == MealEstimateSource.text
+                        ? 'ПРОДУКТЫ ИЗ ОПИСАНИЯ'
+                        : 'ПРОДУКТЫ НА ФОТО',
                     style: const TextStyle(
                       color: Colors.white70,
                       letterSpacing: 1.4,
@@ -146,19 +114,28 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '≈ ${kcal.round()} ккал',
+                    _complete
+                        ? '${total((p) => p.kcal).round()} ккал'
+                        : 'Нужен источник состава',
                     key: const Key('photo-total'),
                     style: const TextStyle(
-                      fontSize: 34,
+                      fontSize: 28,
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  Text(
-                    'Б ${total((p) => p.protein).round()} · Ж ${total((p) => p.fat).round()} · '
-                    'У ${total((p) => p.carbs).round()} г',
-                    style: const TextStyle(color: Colors.white),
-                  ),
+                  if (_complete) ...[
+                    Text(
+                      'Б ${total((p) => p.protein).round()} · Ж ${total((p) => p.fat).round()} · У ${total((p) => p.carbs).round()} г',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      _items.any((f) => !f.source!.fiberKnown)
+                          ? 'Клетчатка: состав неполный'
+                          : 'Клетчатка ${total((p) => p.fiber).round()} г',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     'Запись за $date',
@@ -168,9 +145,10 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Уточните вес и состав. Масло, соусы и скрытые ингредиенты могут '
-              'изменить калорийность. Все значения приблизительные.',
+            Text(
+              widget.analysis.source == MealEstimateSource.manual
+                  ? 'Проверьте состав с этикетки и массу порции. Можно добавить другие ингредиенты перед сохранением.'
+                  : 'AI предлагает только продукт и примерную массу. Выберите источник состава для каждого ингредиента и проверьте порцию. Масло и соусы добавьте отдельно, если они не учтены в блюде.',
             ),
             for (final warning in widget.analysis.warnings)
               Padding(
@@ -195,19 +173,47 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
               ),
             for (var i = 0; i < _items.length; i++)
               Card(
-                child: ListTile(
-                  onTap: _saving ? null : () => _edit(i),
-                  title: Text(_items[i].name),
-                  subtitle: Text(
-                    '${_items[i].grams.round()} г · ≈ ${_items[i].calories.round()} ккал\n'
-                    'Уверенность: ${switch (_items[i].confidence) {
-                      'high' => 'высокая',
-                      'medium' => 'средняя',
-                      _ => 'низкая',
-                    }}',
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _items[i].name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Text(
+                        '${_items[i].grams} г · ${_items[i].source == null ? 'состав не выбран' : '${_items[i].calories!.round()} ккал'}',
+                      ),
+                      if (_items[i].source != null) ...[
+                        Text(
+                          'Источник: ${_items[i].source!.provenance.reference}',
+                        ),
+                        if (_items[i].source!.provenance.url != null)
+                          SelectableText(_items[i].source!.provenance.url!),
+                      ] else
+                        Text(
+                          'Уверенность в названии: ${switch (_items[i].confidence) {
+                            'high' => 'высокая',
+                            'medium' => 'средняя',
+                            _ => 'низкая',
+                          }}',
+                        ),
+                      TextButton.icon(
+                        key: Key('food-source-$i'),
+                        onPressed: _saving ? null : () => _edit(i),
+                        icon: const Icon(Icons.fact_check_outlined),
+                        label: Text(
+                          _items[i].source == null
+                              ? 'Выбрать источник'
+                              : 'Изменить источник или порцию',
+                        ),
+                      ),
+                    ],
                   ),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.edit_outlined),
                 ),
               ),
             OutlinedButton.icon(
@@ -225,7 +231,7 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
               ),
             FilledButton.icon(
               key: const Key('photo-save'),
-              onPressed: _saving || _items.isEmpty ? null : _save,
+              onPressed: _saving || !_complete ? null : _save,
               icon: _saving
                   ? const SizedBox(
                       width: 18,

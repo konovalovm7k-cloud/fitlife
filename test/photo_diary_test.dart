@@ -1,3 +1,4 @@
+import 'support/confirmed_food.dart';
 import 'dart:convert';
 import 'package:fitlife/features/photo_analysis/photo_diary.dart';
 import 'package:fitlife/features/photo_analysis/photo_models.dart';
@@ -34,7 +35,7 @@ void main() {
       id: 'c' * 32,
       day: DateTime(2026, 10, 20),
       meal: 'Обед',
-      items: [PhotoFood.fromJson(sampleFood)],
+      items: [confirmedFood(sampleFood)],
     );
     await Future.wait([
       savePhotoMeal(photo),
@@ -62,8 +63,8 @@ void main() {
         day: DateTime(2026, 10, 20),
         meal: 'Обед',
         items: [
-          PhotoFood.fromJson(sampleFood),
-          PhotoFood.fromJson({...sampleFood, 'name': 'Салат', 'grams': 50}),
+          confirmedFood(sampleFood),
+          confirmedFood({...sampleFood, 'name': 'Салат', 'grams': 50}),
         ],
       );
       final saved = await savePhotoMeal(meal);
@@ -77,7 +78,7 @@ void main() {
         day: meal.day,
         meal: meal.meal,
         items: [
-          PhotoFood.fromJson({...sampleFood, 'grams': 200}),
+          confirmedFood({...sampleFood, 'grams': 200}),
         ],
       );
       final replaced = await savePhotoMeal(corrected);
@@ -96,7 +97,7 @@ void main() {
       id: 'a' * 32,
       day: DateTime(2026),
       meal: 'Обед',
-      items: [PhotoFood.fromJson(sampleFood)],
+      items: [confirmedFood(sampleFood)],
     );
     await expectLater(
       savePhotoMeal(
@@ -120,7 +121,7 @@ void main() {
         day: DateTime(2026, 10, 22),
         meal: 'Обед',
         source: MealEstimateSource.text,
-        items: [PhotoFood.fromJson(sampleFood)],
+        items: [confirmedFood(sampleFood)],
       );
       await savePhotoMeal(meal);
       final saved = await savePhotoMeal(meal);
@@ -145,7 +146,7 @@ void main() {
         id: 'b' * 32,
         day: DateTime(2026, 10, 20),
         meal: 'Обед',
-        items: [PhotoFood.fromJson(sampleFood)],
+        items: [confirmedFood(sampleFood)],
       );
       await expectLater(savePhotoMeal(meal), throwsStateError);
       expect(disk.writes, 1);

@@ -165,7 +165,8 @@ void main() {
       expect(requests, 1);
       expect(saves, 0);
       expect(find.text('Проверьте блюдо'), findsOneWidget);
-      expect(find.text('≈ 195 ккал'), findsOneWidget);
+      expect(find.text('Нужен источник состава'), findsOneWidget);
+      expect(find.textContaining('195 ккал'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

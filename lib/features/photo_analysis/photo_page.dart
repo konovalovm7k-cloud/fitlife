@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../app/fitlife_theme.dart';
 import 'photo_image.dart';
+import 'label_meal.dart';
 import 'photo_models.dart';
 import 'photo_review_page.dart';
 import 'photo_service.dart';
@@ -158,7 +159,7 @@ class _PhotoPageState extends State<PhotoPage> {
           content: Text(
             'Фото будет отправлено на ${connection.endpoint.host}, затем в Google Gemini. '
             'Метаданные и GPS удалены. На бесплатном тарифе Google может использовать фото для улучшения продуктов. '
-            'Не отправляйте фото людей и документов. Результат приблизительный; перед сохранением его можно исправить.',
+            'Не отправляйте фото людей и документов. AI предложит продукты и порции. Источник состава вы выберете сами перед сохранением.',
           ),
           actions: [
             TextButton(
@@ -349,6 +350,18 @@ class _PhotoPageState extends State<PhotoPage> {
         onPressed: _busy ? null : widget.onManual,
         icon: const Icon(Icons.edit_note),
         label: const Text('Добавить продукты вручную'),
+      ),
+      OutlinedButton.icon(
+        onPressed: _busy
+            ? null
+            : () => openLabelMeal(
+                context,
+                day: widget.day,
+                meal: widget.meal,
+                onSave: widget.onSave,
+              ),
+        icon: const Icon(Icons.fact_check_outlined),
+        label: const Text('Ввести состав с этикетки'),
       ),
       const SizedBox(height: 12),
       const Text(

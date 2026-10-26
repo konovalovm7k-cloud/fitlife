@@ -63,7 +63,14 @@ Wrangler dry-run bundle succeeds (13.97 KiB, gzip 4.85 KiB); no upload occurs.
 Flutter analyze and all 163 Flutter tests still pass. Flutter/Android sources
 are unchanged from the verified signed 4.6.2+16 APK in #9.
 
-No deployment is part of this commit. Deploy the additive server before
-switching the app to V2. The next client change must present an explicit update
-or manual-entry fallback on an older server's 404; it must not silently fall
-back to V1 nutrient estimates. Existing saved diary entries remain readable.
+The original server-only commit did not deploy the Worker. On 26 October 2026,
+the same server sources were deployed with existing variables preserved as
+version `3f116f94-0ce8-4abf-9a1f-dd375833037d`. D1, secrets, model and daily/minute
+quotas were retained. One synthetic live text request (apple, 180 g) returned
+HTTP 200 with only name/grams/confidence and no nutrients. This checks the live
+contract, not recognition accuracy or camera quality.
+
+The 4.6.3 client now selects and confirms nutrition sources separately; see
+`../SOURCE_CONFIRMED_MEALS.md`. On an older server's 404 it offers an update or
+manual entry and never silently falls back to V1 nutrient estimates. Existing
+saved diary entries remain readable.

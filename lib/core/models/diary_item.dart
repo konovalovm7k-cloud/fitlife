@@ -1,4 +1,5 @@
 import 'nutrition_profile.dart';
+import '../nutrition/nutrition_engine.dart';
 
 class FoodItem {
   const FoodItem({
@@ -13,6 +14,7 @@ class FoodItem {
     this.isPhotoEstimate = false,
     this.isTextEstimate = false,
     this.hasKnownFiber = true,
+    this.provenance,
   });
   final String id;
   final String name;
@@ -25,6 +27,7 @@ class FoodItem {
   final bool isPhotoEstimate;
   final bool isTextEstimate;
   final bool hasKnownFiber;
+  final NutritionProvenance? provenance;
   NutritionProfile get profile =>
       nutrition ??
       NutritionProfile(
@@ -46,6 +49,7 @@ class FoodItem {
     if (isPhotoEstimate) 'photoEstimate': true,
     if (isTextEstimate) 'textEstimate': true,
     if (!hasKnownFiber) 'fiberKnown': false,
+    if (provenance != null) 'nutritionSource': provenance!.toJson(),
   };
   factory FoodItem.fromJson(Map<String, dynamic> json) => FoodItem(
     id: _requiredString(json['id']),
@@ -58,6 +62,11 @@ class FoodItem {
     isPhotoEstimate: json['photoEstimate'] == true,
     isTextEstimate: json['textEstimate'] == true,
     hasKnownFiber: json['fiberKnown'] != false,
+    provenance: json['nutritionSource'] == null
+        ? null
+        : NutritionProvenance.fromJson(
+            Map<String, dynamic>.from(json['nutritionSource'] as Map),
+          ),
     nutrition: json['nutrition'] == null
         ? null
         : NutritionProfile.fromJson(

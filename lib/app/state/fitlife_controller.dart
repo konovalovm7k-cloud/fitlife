@@ -5,6 +5,7 @@ import '../../core/models/diary_item.dart';
 import '../../core/models/nutrition_goal_settings.dart';
 import '../../core/nutrition/nutrition_database.dart';
 import '../../core/nutrition/nutrition_day.dart';
+import '../../core/nutrition/nutrition_engine.dart';
 import '../../data/built_in_foods.dart';
 import '../../features/photo_analysis/photo_models.dart';
 import 'fitlife_repository.dart';
@@ -208,8 +209,8 @@ class FitLifeController extends ChangeNotifier {
             food: NutritionFoodRecord(
               id: entry.food.id,
               name: entry.food.name,
-              source: '',
-              sourceUrl: '',
+              source: entry.food.provenance?.reference ?? '',
+              sourceUrl: entry.food.provenance?.url ?? '',
               profile: entry.food.profile,
               macrosOnly: !entry.food.hasKnownFiber,
             ),
@@ -238,6 +239,7 @@ class FitLifeController extends ChangeNotifier {
       fiber: p.fiber,
       nutrition: p,
       hasKnownFiber: !record.macrosOnly,
+      provenance: NutritionSource.catalogue(record).provenance,
     );
     if (!foods.any((item) => item.id == food.id)) await saveFood(food);
     if (_disposed) return;

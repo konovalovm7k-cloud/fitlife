@@ -481,7 +481,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                 ),
               ),
               Text(
-                'Осталось ${caloriesLeft.round()} ккал · Б ${protein.round()} г · Ж ${fat.round()} г · Кл ${fiber.round()} г',
+                'Осталось ${caloriesLeft.round()} ккал · Б ${protein.round()} г · Ж ${fat.round()} г · Кл ${hasFiberGaps ? '≥ ' : ''}${fiber.round()} г',
                 style: const TextStyle(color: muted),
               ),
             ],
@@ -671,7 +671,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               _progressLine(
                 hasFiberGaps ? 'Клетчатка · данные неполные' : 'Клетчатка',
                 fiber / fiberTarget,
-                '${fiber.round()} / ${fiberTarget.round()} г',
+                '${hasFiberGaps ? '≥ ' : ''}${fiber.round()} / ${fiberTarget.round()} г',
               ),
             ],
           ),
@@ -977,11 +977,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  '${item.food.isTextEstimate
+                  '${item.food.provenance != null
+                      ? 'Состав: ${item.food.provenance!.reference} · '
+                      : item.food.isTextEstimate
                       ? 'AI-оценка по описанию · '
                       : item.food.isPhotoEstimate
                       ? 'Оценка по фото · '
-                      : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · Кл ${item.fiber.round()} г',
+                      : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · ${item.food.hasKnownFiber ? 'Кл ${item.fiber.round()} г' : 'Клетчатка не указана'}',
                 ),
                 trailing: IconButton(
                   tooltip: 'Изменить порцию',

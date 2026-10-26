@@ -22,7 +22,7 @@ const sampleFood = <String, dynamic>{
 final connection = PhotoConnection('https://fitlife.example.com', 'a' * 43);
 final jpeg = Uint8List.fromList([255, 216, 255, 224, 255, 217]);
 Map<String, dynamic> result(String id) => {
-  'version': 1,
+  'version': 2,
   'requestId': id,
   'items': [sampleFood],
   'warnings': <String>[],
@@ -54,7 +54,7 @@ void main() {
     },
   );
   test(
-    'request is authenticated JPEG; validated per-100g values scale to portion',
+    'request is authenticated JPEG; model nutrients never become a source',
     () async {
       http.Request? sent;
       final service = PhotoService(
@@ -73,37 +73,39 @@ void main() {
       expect(sent!.headers['Content-Type'], 'image/jpeg');
       expect(sent!.followRedirects, isFalse);
       expect(sent!.bodyBytes, jpeg);
-      expect(analysis.items.single.calories, 195);
-      expect(analysis.items.single.nutrition.kcal, 130);
+      expect(sent!.url.path, '/v2/identify');
+      expect(analysis.items.single.calories, isNull);
+      expect(analysis.items.single.nutrition, isNull);
+      expect(analysis.items.single.source, isNull);
     },
   );
-  test('invalid nutrition and contract never pass as food', () {
-    for (final patch in [
-      {'kcal': -1},
-      {'grams': double.nan},
-      {'fat': 101},
-      {'confidence': '99%'},
-      {'name': ''},
-      {'protein': 80, 'fat': 80},
-    ]) {
+  test(
+    'invalid identity and legacy contract never pass as identified food',
+    () {
+      for (final patch in [
+        {'grams': double.nan},
+        {'confidence': '99%'},
+        {'name': ''},
+      ]) {
+        expect(
+          () => PhotoFood.fromJson({...sampleFood, ...patch}),
+          throwsFormatException,
+        );
+      }
       expect(
-        () => PhotoFood.fromJson({...sampleFood, ...patch}),
+        () => PhotoAnalysis.fromJson(result('wrong'), 'id'),
         throwsFormatException,
       );
-    }
-    expect(
-      () => PhotoAnalysis.fromJson(result('wrong'), 'id'),
-      throwsFormatException,
-    );
-    expect(
-      () => PhotoAnalysis.fromJson({...result('id'), 'version': 2}, 'id'),
-      throwsFormatException,
-    );
-  });
+      expect(
+        () => PhotoAnalysis.fromJson({...result('id'), 'version': 1}, 'id'),
+        throwsFormatException,
+      );
+    },
+  );
   test(
     'status errors and malformed/oversized responses are safe and never retried',
     () async {
-      for (final status in [401, 413, 422, 429, 503, 504, 302]) {
+      for (final status in [401, 404, 413, 422, 429, 503, 504, 302]) {
         var calls = 0;
         final service = PhotoService(
           client: MockClient((_) async {

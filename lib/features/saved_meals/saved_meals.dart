@@ -22,7 +22,9 @@ class SavedMeal {
   double total(double Function(DiaryItem) value) =>
       items.fold(0.0, (sum, item) => sum + value(item)) / servings;
   bool get estimated => items.any(
-    (item) => item.food.isPhotoEstimate || item.food.isTextEstimate,
+    (item) =>
+        item.food.provenance == null &&
+        (item.food.isPhotoEstimate || item.food.isTextEstimate),
   );
 
   void validate() {

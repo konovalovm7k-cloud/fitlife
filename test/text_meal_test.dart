@@ -9,41 +9,37 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'photo_page_test.dart' show MemoryPhotoConnection;
 import 'photo_service_test.dart' show result;
+import 'support/source_flow.dart';
 
 void main() {
   final connection = PhotoConnection('https://personal.example.com', 'a' * 43);
-  test(
-    'description uses the authenticated text route and per-100g review contract',
-    () async {
-      final service = PhotoService(
-        client: MockClient((request) async {
-          expect(request.url.path, '/v1/analyze-text');
-          expect(request.url.host, connection.endpoint.host);
-          expect(
-            request.headers['Authorization'],
-            'Bearer ${connection.token}',
-          );
-          expect(request.headers['Content-Type'], 'application/json');
-          expect(request.followRedirects, isFalse);
-          expect(jsonDecode(utf8.decode(request.bodyBytes)), {
-            'text': 'Рис варёный 150 г',
-          });
-          return http.Response(
-            jsonEncode(result(request.headers['X-Request-Id']!)),
-            200,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
-        }),
-      );
-      addTearDown(service.close);
-      final analysis = await service.analyzeText(
-        connection,
-        '  Рис варёный 150 г  ',
-      );
-      expect(analysis.source, MealEstimateSource.text);
-      expect(analysis.items.single.calories, 195);
-    },
-  );
+  test('description uses the authenticated identity-only text route', () async {
+    final service = PhotoService(
+      client: MockClient((request) async {
+        expect(request.url.path, '/v2/identify-text');
+        expect(request.url.host, connection.endpoint.host);
+        expect(request.headers['Authorization'], 'Bearer ${connection.token}');
+        expect(request.headers['Content-Type'], 'application/json');
+        expect(request.followRedirects, isFalse);
+        expect(jsonDecode(utf8.decode(request.bodyBytes)), {
+          'text': 'Рис варёный 150 г',
+        });
+        return http.Response(
+          jsonEncode(result(request.headers['X-Request-Id']!)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    addTearDown(service.close);
+    final analysis = await service.analyzeText(
+      connection,
+      '  Рис варёный 150 г  ',
+    );
+    expect(analysis.source, MealEstimateSource.text);
+    expect(analysis.items.single.calories, isNull);
+    expect(analysis.items.single.source, isNull);
+  });
   test(
     'empty, oversized and control-character input never reaches the network',
     () async {
@@ -145,7 +141,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(requests, 1);
       expect(saved, isNull);
-      expect(find.text('ОЦЕНКА ПО ОПИСАНИЮ'), findsOneWidget);
+      expect(find.text('ПРОДУКТЫ ИЗ ОПИСАНИЯ'), findsOneWidget);
+      await confirmRiceLabel(tester, grams: '150');
       await tester.scrollUntilVisible(find.byKey(const Key('photo-save')), 150);
       await tester.tap(find.byKey(const Key('photo-save')));
       await tester.pumpAndSettle();

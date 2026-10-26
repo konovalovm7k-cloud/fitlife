@@ -1,3 +1,4 @@
+import 'support/confirmed_food.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -69,7 +70,7 @@ void main() {
     },
   );
   test(
-    'photo and text batches cannot overwrite concurrent manual entries',
+    'photo, text and offline label batches cannot overwrite concurrent manual entries',
     () async {
       final repository = DiaryRepository(await SharedPreferences.getInstance());
       await Future.wait([
@@ -81,12 +82,13 @@ void main() {
               day: date,
               meal: 'Обед',
               source: source,
-              items: [PhotoFood.fromJson(sampleFood)],
+              items: [confirmedFood(sampleFood)],
             ),
           ),
       ]);
       final saved = await repository.updateDay(date, (current) => current);
-      expect(saved.length, 3);
+      expect(saved.length, 4);
+      expect(saved.where((item) => item.id.startsWith('source_')).length, 1);
       expect(saved.map((item) => item.id), contains('manual'));
       expect(saved.where((item) => item.food.isPhotoEstimate).length, 1);
       expect(saved.where((item) => item.food.isTextEstimate).length, 1);

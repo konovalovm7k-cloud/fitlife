@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/diary_item.dart';
 import '../../data/repositories/diary_repository.dart';
+import '../../core/nutrition/nutrition_engine.dart';
 import 'photo_models.dart';
 
 Future<List<DiaryItem>> savePhotoMeal(
@@ -14,11 +15,20 @@ Future<List<DiaryItem>> savePhotoMeal(
     throw const FormatException('Invalid photo meal');
   }
   final entries = <DiaryItem>[];
-  final kind = meal.source == MealEstimateSource.text ? 'text' : 'photo';
+  final kind = switch (meal.source) {
+    MealEstimateSource.text => 'text',
+    MealEstimateSource.photo => 'photo',
+    MealEstimateSource.manual => 'source',
+  };
   for (var i = 0; i < meal.items.length; i++) {
     final item = meal.items[i];
     final id = '${kind}_${meal.id}_$i';
-    final p = item.nutrition;
+    final source = item.source;
+    if (source == null) {
+      throw const FormatException('Confirm nutrition source before saving');
+    }
+    NutritionEngine.portion(source, item.grams);
+    final p = source.profile;
     entries.add(
       DiaryItem(
         id: id,
@@ -28,12 +38,15 @@ Future<List<DiaryItem>> savePhotoMeal(
             '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
         food: FoodItem(
           id: id,
-          name: item.name,
+          name: source.name,
           kcal: p.kcal,
           protein: p.protein,
           fat: p.fat,
           carbs: p.carbs,
           fiber: p.fiber,
+          nutrition: p,
+          hasKnownFiber: source.fiberKnown,
+          provenance: source.provenance,
           isPhotoEstimate: meal.source == MealEstimateSource.photo,
           isTextEstimate: meal.source == MealEstimateSource.text,
         ),

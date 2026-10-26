@@ -5,13 +5,20 @@ import 'package:fitlife/features/photo_analysis/photo_review_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'photo_service_test.dart' show sampleFood;
+import 'support/confirmed_food.dart';
+import 'support/source_flow.dart';
 
-Widget review(Future<void> Function(PhotoMeal) save) => MaterialApp(
+Widget review(
+  Future<void> Function(PhotoMeal) save, {
+  bool confirmed = false,
+}) => MaterialApp(
   theme: fitLifeTheme(),
   home: PhotoReviewPage(
     analysis: PhotoAnalysis(
       requestId: 'a' * 32,
-      items: [PhotoFood.fromJson(sampleFood)],
+      items: [
+        confirmed ? confirmedFood(sampleFood) : PhotoFood.fromJson(sampleFood),
+      ],
       warnings: const [],
     ),
     day: DateTime(2026, 10, 20),
@@ -22,7 +29,7 @@ Widget review(Future<void> Function(PhotoMeal) save) => MaterialApp(
 
 void main() {
   testWidgets(
-    'review never auto saves; portion edit updates total and failed save can retry',
+    'unconfirmed model numbers are hidden; label and portion confirmed; failed save retries',
     (tester) async {
       var calls = 0;
       PhotoMeal? saved;
@@ -34,22 +41,34 @@ void main() {
         }),
       );
       await tester.pumpAndSettle();
-      expect(calls, 0);
-      expect(find.text('≈ 195 ккал'), findsOneWidget);
-      await tester.tap(find.text('Рис варёный'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Вес порции, г'),
-        '200',
+      expect(find.text('Нужен источник состава'), findsOneWidget);
+      expect(find.textContaining('195 ккал'), findsNothing);
+      await reveal(tester, find.byKey(const Key('photo-save')));
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('photo-save')))
+            .onPressed,
+        isNull,
       );
-      await tester.tap(find.text('Сохранить'));
+      expect(calls, 0);
+      // Return to the ingredient above the confirmation button.
+      await tester.drag(find.byType(ListView), const Offset(0, 700));
       await tester.pumpAndSettle();
-      expect(find.text('≈ 260 ккал'), findsOneWidget);
-      await tester.ensureVisible(find.byKey(const Key('photo-save')));
+      await confirmRiceLabel(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, 900));
+      await tester.pumpAndSettle();
+      expect(find.text('260 ккал'), findsOneWidget);
+      expect(find.text('Клетчатка: состав неполный'), findsOneWidget);
+      await reveal(tester, find.byKey(const Key('photo-save')));
       await tester.tap(find.byKey(const Key('photo-save')));
       await tester.pumpAndSettle();
       expect(calls, 1);
       expect(saved!.items.single.grams, 200);
+      expect(
+        saved!.items.single.source!.provenance.reference,
+        'Рис — тестовая этикетка',
+      );
+      expect(saved!.items.single.source!.fiberKnown, isFalse);
       expect(saved!.day, DateTime(2026, 10, 20));
       expect(find.textContaining('Не удалось сохранить'), findsOneWidget);
       await tester.tap(find.byKey(const Key('photo-save')));
@@ -58,7 +77,8 @@ void main() {
       expect(saved!.id, 'a' * 32);
     },
   );
-  testWidgets('double tap only saves once; empty review disables save', (
+
+  testWidgets('double tap saves once; deletion disables empty review', (
     tester,
   ) async {
     final pending = Completer<void>();
@@ -67,24 +87,31 @@ void main() {
       review((_) {
         calls++;
         return pending.future;
-      }),
+      }, confirmed: true),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('photo-save')));
+    await reveal(tester, find.byKey(const Key('photo-save')));
     await tester.tap(find.byKey(const Key('photo-save')));
     await tester.tap(find.byKey(const Key('photo-save')));
     await tester.pump();
     expect(calls, 1);
     pending.completeError(StateError('disk'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Рис варёный'));
+    await tester.drag(find.byType(ListView), const Offset(0, 700));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Удалить'));
+    await reveal(tester, find.byKey(const Key('food-source-0')));
+    await tester.tap(find.byKey(const Key('food-source-0')));
     await tester.pumpAndSettle();
-    final button = tester.widget<FilledButton>(
-      find.byKey(const Key('photo-save')),
+    await reveal(tester, find.text('Удалить ингредиент'));
+    await tester.tap(find.text('Удалить ингредиент'));
+    await tester.pumpAndSettle();
+    await reveal(tester, find.byKey(const Key('photo-save')));
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('photo-save')))
+          .onPressed,
+      isNull,
     );
-    expect(button.onPressed, isNull);
-    expect(find.text('≈ 0 ккал'), findsOneWidget);
+    expect(find.text('0 ккал'), findsNothing);
   });
 }

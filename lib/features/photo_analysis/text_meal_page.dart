@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../app/fitlife_theme.dart';
 import 'photo_models.dart';
+import 'label_meal.dart';
 import 'photo_review_page.dart';
 import 'photo_service.dart';
 import 'photo_settings_page.dart';
@@ -64,7 +65,7 @@ class _TextMealPageState extends State<TextMealPage> {
           content: Text(
             'Введённое описание еды будет отправлено на ${connection.endpoint.host}, затем в Google Gemini. '
             'Остальной дневник не отправляется. На бесплатном тарифе Google может использовать текст для улучшения продуктов. '
-            'Не указывайте личные или медицинские сведения. Порции и КБЖУ приблизительные: проверьте их перед сохранением.',
+            'Не указывайте личные или медицинские сведения. AI предложит продукты и порции. Источник состава вы выберете сами перед сохранением.',
           ),
           actions: [
             TextButton(
@@ -237,6 +238,18 @@ class _TextMealPageState extends State<TextMealPage> {
                 ),
           icon: const Icon(Icons.cloud_outlined),
           label: const Text('Настройки распознавания'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _busy
+              ? null
+              : () => openLabelMeal(
+                  context,
+                  day: widget.day,
+                  meal: widget.meal,
+                  onSave: widget.onSave,
+                ),
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text('Ввести состав с этикетки'),
         ),
         const Text(
           'Описание и фото используют общий лимит распознаваний. Без интернета можно добавить продукты вручную.',

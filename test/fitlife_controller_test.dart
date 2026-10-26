@@ -1,3 +1,4 @@
+import 'support/confirmed_food.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -189,7 +190,7 @@ void main() {
         id: 'a' * 32,
         day: today,
         meal: 'Обед',
-        items: [PhotoFood.fromJson(sampleFood)],
+        items: [confirmedFood(sampleFood)],
       );
       final save = controller.savePhoto(meal);
       await controller.selectDay(yesterday);
