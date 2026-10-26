@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Miniflare, convertV4MiniflareOptions, Response as WorkerResponse } from 'miniflare';
-import { hashToken } from '../src/worker.mjs';
+import { hashToken, identificationSchema } from '../src/worker.mjs';
 
 test('real Workers runtime and D1 execute authenticated photo contract with mock Gemini', async () => {
   let calls = 0;
@@ -86,5 +86,46 @@ test('real Workers runtime validates UTF-8 descriptions and shares quota with ph
     });
     assert.equal(photo.status, 429);
     assert.equal(calls, 1);
+  } finally { await mf.dispose(); }
+});
+
+test('real Workers V2 excludes model nutrition and shares atomic D1 limits with V1', async () => {
+  let calls = 0;
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+  ], compatibilityDate: '2026-10-20', d1Databases: ['DB'],
+    bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite', USER_DAILY_LIMIT: '2' },
+    outboundService: async (request) => {
+      calls++;
+      const input = await request.json();
+      assert.deepEqual(input.generationConfig.responseSchema, identificationSchema);
+      return WorkerResponse.json({ candidates: [{ finishReason: 'STOP', content: { parts: [
+        { text: JSON.stringify({ items: [{ name: 'Яблоко', grams: 180, confidence: 'high',
+          kcal: 999, protein: 99, sourceId: 'invented' }], warnings: ['uncertain_portion'] }) },
+      ] } }] });
+    },
+  }));
+  try {
+    const db = await mf.getD1Database('DB');
+    for (const statement of readFileSync(new URL('../migrations/0001.sql', import.meta.url), 'utf8')
+      .split(';').filter(s => s.trim())) await db.prepare(statement).run();
+    const token = 'a'.repeat(43);
+    await db.prepare('INSERT INTO users(id, token_hash) VALUES (?, ?)').bind('alice', await hashToken(token)).run();
+    const send = (path, id) => mf.dispatchFetch(`https://fitlife.test${path}`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`,
+        'Content-Type': path.endsWith('-text') ? 'application/json' : 'image/jpeg', 'X-Request-Id': id },
+      body: path.endsWith('-text') ? JSON.stringify({ text: 'Яблоко 180 г' })
+        : new Uint8Array([255, 216, 255, 224, 255, 217]),
+    });
+    for (const [path, id] of [['/v2/identify', 'a'], ['/v2/identify-text', 'b']]) {
+      const result = await send(path, id.repeat(32));
+      assert.equal(result.status, 200);
+      assert.deepEqual(await result.json(), { version: 2, requestId: id.repeat(32),
+        items: [{ name: 'Яблоко', grams: 180, confidence: 'high' }], warnings: ['uncertain_portion'] });
+    }
+    assert.equal((await send('/v2/identify-text', 'a'.repeat(32))).status, 429);
+    assert.equal((await send('/v1/analyze', 'c'.repeat(32))).status, 429);
+    assert.equal(calls, 2);
   } finally { await mf.dispose(); }
 });

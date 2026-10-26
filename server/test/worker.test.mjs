@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES, schema } from '../src/worker.mjs';
+import { handle, hashToken, reserve, validateResult, MAX_IMAGE_BYTES, schema,
+  identificationSchema } from '../src/worker.mjs';
 
 const token = 'a'.repeat(43);
 const food = { name: 'Рис варёный', grams: 150, kcal: 130, protein: 2.7,
@@ -200,4 +201,98 @@ test('photo and text share the per-user quota and duplicate-request protection',
   assert.equal((await handle(textRequest('Яблоко 180 г', 'b'.repeat(32)), env, provider())).status, 200);
   assert.equal((await handle(request({ id: 'c'.repeat(32) }), env, provider())).status, 429);
   assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 2);
+});
+
+const identity = { name: 'Рис варёный', grams: 150, confidence: 'medium' };
+const identification = { items: [identity], warnings: ['uncertain_portion'] };
+function identifyRequest({ text = false, id = 'a'.repeat(32), auth = token,
+  body, type } = {}) {
+  return new Request(`https://fitlife.test/v2/${text ? 'identify-text' : 'identify'}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'X-Request-Id': id,
+      'Content-Type': type ?? (text ? 'application/json' : 'image/jpeg') },
+    body: body ?? (text ? JSON.stringify({ text: 'Рис варёный 150 г' }) : jpeg),
+  });
+}
+
+test('V2 photo and text request identities only, with no nutrient schema or provenance claims', async () => {
+  for (const text of [false, true]) {
+    let calls = 0;
+    const result = await handle(identifyRequest({ text }), await setup(), async (_url, options) => {
+      calls++;
+      const body = JSON.parse(options.body);
+      assert.deepEqual(body.generationConfig.responseSchema, identificationSchema);
+      assert.match(body.systemInstruction.parts[0].text, /do not calculate or estimate calories/);
+      assert.match(body.systemInstruction.parts[0].text, /untrusted data/);
+      assert.deepEqual(Object.keys(body.generationConfig.responseSchema.properties.items.items.properties),
+        ['name', 'grams', 'confidence']);
+      if (text) assert.deepEqual(body.contents[0].parts, [{ text: 'Рис варёный 150 г' }]);
+      else assert.equal(body.contents[0].parts[0].inlineData.mimeType, 'image/jpeg');
+      return provider(identification)();
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { version: 2, requestId: 'a'.repeat(32), ...identification });
+    assert.equal(calls, 1);
+  }
+});
+
+test('V2 strips unsolicited nutrition and forged source data at every output level', async () => {
+  const malicious = { ...identification, kcal: 999, source: 'USDA', items: [
+    { ...food, kcal: 999, nutrition: { protein: 50 }, sourceId: 'fake',
+      sourceUrl: 'https://invented.example.com', water: 99, satietyHours: 5 },
+  ] };
+  const result = await handle(identifyRequest(), await setup(), provider(malicious));
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), { version: 2, requestId: 'a'.repeat(32), ...identification });
+});
+
+test('V2 warning codes reject generated nutritional advice and malformed identity', async () => {
+  for (const bad of [
+    { ...identification, warnings: ['This contains 100 kcal'] },
+    { ...identification, warnings: ['unknown_code'] },
+    ...[{ grams: 0 }, { grams: Infinity }, { grams: '150' }, { confidence: '99%' },
+      { name: '' }, { name: 'rice\u0000' }].map(patch => ({ ...identification, items: [{ ...identity, ...patch }] })),
+  ]) {
+    assert.throws(() => validateResult(bad, true));
+  }
+  const result = await handle(identifyRequest(), await setup(), provider({ ...identification, warnings: ['100 kcal'] }));
+  assert.equal(result.status, 502);
+  assert.deepEqual(await result.json(), { error: 'invalid_result' });
+});
+
+test('V2 no-food stays empty; provider failure has one call, no retry or guessed fallback', async () => {
+  const empty = { items: [], warnings: ['no_food'] };
+  const response = await handle(identifyRequest(), await setup(), provider(empty));
+  assert.deepEqual((await response.json()).items, []);
+  let calls = 0;
+  const result = await handle(identifyRequest(), await setup(), async () => {
+    calls++;
+    return new Response('private provider details', { status: 429 });
+  });
+  assert.equal(result.status, 429);
+  assert.deepEqual(await result.json(), { error: 'provider_quota' });
+  assert.equal(calls, 1);
+});
+
+test('V2 shares V1 reservations, duplicate IDs and user limits across all modes', async () => {
+  const env = await setup();
+  env.USER_DAILY_LIMIT = '2';
+  assert.equal((await handle(request(), env, provider())).status, 200);
+  assert.equal((await handle(identifyRequest(), env, provider(identification))).status, 429);
+  assert.equal((await handle(identifyRequest({ text: true, id: 'b'.repeat(32) }), env, provider(identification))).status, 200);
+  assert.equal((await handle(identifyRequest({ id: 'c'.repeat(32) }), env, provider(identification))).status, 429);
+  assert.equal((await handle(textRequest('Яблоко', 'd'.repeat(32)), env, provider())).status, 429);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 2);
+});
+
+test('V2 applies auth, request and input gates before reserving or calling Gemini', async () => {
+  const env = await setup();
+  const forbidden = () => { throw new Error('Must not call provider'); };
+  for (const [options, status] of [
+    [{ auth: 'short' }, 401], [{ auth: 'b'.repeat(43) }, 401],
+    [{ id: 'invalid' }, 400], [{ type: 'image/png' }, 415],
+    [{ body: new Uint8Array(4) }, 415], [{ text: true, body: '{}' }, 400],
+    [{ text: true, body: 'x'.repeat(16385) }, 413],
+    [{ body: new Uint8Array(MAX_IMAGE_BYTES + 1) }, 413],
+  ]) assert.equal((await handle(identifyRequest(options), env, forbidden)).status, status);
+  assert.equal(env.DB.db.prepare('SELECT COUNT(*) AS n FROM requests').get().n, 0);
 });
