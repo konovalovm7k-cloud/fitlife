@@ -78,7 +78,7 @@ void main() {
       disk.failedKeys.add(key);
       await tester.tap(find.text('Вода'));
       await tester.pumpAndSettle();
-      expect(find.text('0.00 л'), findsOneWidget);
+      expect(find.text('Нет записей'), findsOneWidget);
       expect(
         find.text('Не удалось сохранить воду. Попробуй ещё раз.'),
         findsOneWidget,

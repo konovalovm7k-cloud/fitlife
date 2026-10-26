@@ -9,6 +9,7 @@ import 'app/fitlife_app_frame.dart';
 import 'app/nutrition_goal_format.dart';
 import 'app/state/fitlife_controller.dart';
 import 'app/state/fitlife_state.dart';
+import 'app/state/today_guidance.dart';
 import 'app/widgets/day_nutrition_summary.dart';
 import 'app/widgets/companion_avatar.dart';
 import 'app/widgets/value_editor.dart';
@@ -81,6 +82,8 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   double get carbs => data.total.carbs;
   double get fiber => data.total.fiber;
   double get caloriesLeft => data.caloriesLeft;
+  TodayGuidance get guidance =>
+      TodayGuidance.forDay(data, isToday: _controller.isToday);
 
   void _refresh() {
     if (mounted) setState(() {});
@@ -326,6 +329,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         _quickMealActions(),
         const SizedBox(height: 16),
         DayNutritionSummary(calories: calories, target: kcalTarget),
+        const SizedBox(height: 8),
+        const Text(
+          'По внесённым записям · дневник может быть неполным',
+          style: TextStyle(color: muted, fontSize: 11),
+        ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -342,12 +350,24 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               target: fatTarget,
               color: gold,
             ),
-            const SizedBox(width: 8),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
             MacroProgress(
               title: 'Углеводы',
               value: carbs,
               target: carbsTarget,
               color: coral,
+            ),
+            const SizedBox(width: 8),
+            MacroProgress(
+              title: 'Клетчатка',
+              value: fiber,
+              target: fiberTarget,
+              color: greenDark,
+              partial: hasFiberGaps,
             ),
           ],
         ),
@@ -356,7 +376,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
           children: [
             _statCard(
               'Вода',
-              '${water.toStringAsFixed(2)} л',
+              water > 0 ? '${water.toStringAsFixed(2)} л' : 'Нет записей',
               Icons.water_drop_outlined,
               _addWater,
             ),
@@ -373,7 +393,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         _card(
           Row(
             children: [
-              const CompanionAvatar(),
+              CompanionAvatar(mood: guidance.mood),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -385,9 +405,14 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      diary.isEmpty
-                          ? 'Начнём с первого приёма пищи?'
-                          : 'Каждая запись помогает видеть баланс.',
+                      switch (guidance.mood) {
+                        CompanionMood.welcoming =>
+                          'Рад знакомству. Начнём без спешки.',
+                        CompanionMood.attentive =>
+                          'Я рядом. Разберёмся вместе.',
+                        CompanionMood.encouraging =>
+                          'Спасибо за заботу о себе. Я рядом.',
+                      },
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
@@ -828,27 +853,28 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Widget _nextAction() {
-    final String text;
-    if (diary.isEmpty) {
-      text = 'Следующее действие: добавь первый приём пищи';
-    } else if (protein < proteinTarget * 0.7) {
-      text = 'Следующее действие: добавь белковый продукт';
-    } else if (!hasFiberGaps && fiber < fiberTarget * 0.6) {
-      text = 'Следующее действие: добавь овощи или ягоды';
-    } else {
-      text = 'Следующее действие: продолжай обычный ритм';
-    }
-
+    final next = guidance;
     return _card(
-      Row(
+      Column(
+        key: const Key('today-next-action'),
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.flag_outlined, color: greenDark),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
-            ),
+          Text(
+            next.title,
+            style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
+          ),
+          const SizedBox(height: 8),
+          Text(next.detail, style: const TextStyle(color: muted, fontSize: 12)),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: switch (next.action) {
+              TodayAction.logMeal || TodayAction.chooseFood => _addFood,
+              TodayAction.reviewDiary => () => setState(() => tab = 1),
+              TodayAction.savedMeals => _openSavedMeals,
+              TodayAction.catalog => _openCatalog,
+            },
+            icon: const Icon(Icons.arrow_forward_rounded),
+            label: Text(next.button),
           ),
         ],
       ),

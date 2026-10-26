@@ -57,6 +57,7 @@ void main() {
     await tester.pumpWidget(const FitLifeRoot());
     await tester.pumpAndSettle();
     expect(find.text('2400,5'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('из 281,25 г'), 180);
     expect(find.text('из 281,25 г'), findsOneWidget);
     await tester.tap(find.text('Профиль').last);
     await tester.pumpAndSettle();
@@ -123,6 +124,7 @@ void main() {
     await save(tester);
     await tester.tap(find.text('Сегодня').last);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('из 0 г'), 180);
     expect(find.text('из 0 г'), findsOneWidget);
     for (final widget in tester.widgetList<LinearProgressIndicator>(
       find.byType(LinearProgressIndicator),

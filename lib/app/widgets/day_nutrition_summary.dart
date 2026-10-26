@@ -41,12 +41,17 @@ class DayNutritionSummary extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          Row(
+          Wrap(
+            spacing: 24,
+            runSpacing: 20,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Semantics(
                 label: 'Осталось ${remaining.round()} килокалорий',
                 child: SizedBox.square(
-                  dimension: 140,
+                  dimension: MediaQuery.textScalerOf(
+                    context,
+                  ).scale(140).clamp(140, 200),
                   child: Stack(
                     fit: StackFit.expand,
                     alignment: Alignment.center,
@@ -93,8 +98,8 @@ class DayNutritionSummary extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 24),
-              Expanded(
+              SizedBox(
+                width: 120,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -151,12 +156,14 @@ class MacroProgress extends StatelessWidget {
     required this.value,
     required this.target,
     required this.color,
+    this.partial = false,
   });
 
   final String title;
   final double value;
   final double target;
   final Color color;
+  final bool partial;
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -173,7 +180,7 @@ class MacroProgress extends StatelessWidget {
           Text(title, style: const TextStyle(color: muted, fontSize: 11)),
           const SizedBox(height: 7),
           Text(
-            '${value.round()} г',
+            '${partial ? '≥ ' : ''}${value.round()} г',
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -184,6 +191,11 @@ class MacroProgress extends StatelessWidget {
             'из ${formatNutritionGoal(target)} г',
             style: const TextStyle(color: muted, fontSize: 10),
           ),
+          if (partial)
+            const Text(
+              'Состав неполный',
+              style: TextStyle(color: muted, fontSize: 10),
+            ),
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: target <= 0 ? 0 : (value / target).clamp(0.0, 1.0),
