@@ -6,6 +6,7 @@ import 'package:fitlife/core/nutrition/nutrition_catalog_page.dart';
 import 'package:fitlife/core/nutrition/nutrition_day.dart';
 import 'package:fitlife/core/nutrition/nutrition_engine.dart';
 import 'package:fitlife/data/repositories/local_fitlife_repository.dart';
+import 'package:fitlife/features/photo_analysis/food_source_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,42 @@ void main() {
   });
   final rice = records.singleWhere((r) => r.id.endsWith('11-858'));
   final yogurt = records.singleWhere((r) => r.id.endsWith('12-379'));
+  testWidgets(
+    'selected catalogue product narrows the list and query stays editable',
+    (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: FoodSourcePage()));
+      await tester.pumpAndSettle();
+      final query = find.widgetWithText(TextField, 'Поиск в каталоге');
+      await tester.enterText(query, 'CoFID');
+      await tester.pumpAndSettle();
+      final apple = records.first;
+      final row = find.widgetWithText(ListTile, apple.name);
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(query).controller!.text, apple.name);
+      expect(find.byType(ListTile), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('source-confirm')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.ensureVisible(query);
+      await tester.enterText(query, 'Банан');
+      await tester.pumpAndSettle();
+      final banana = find.widgetWithText(ListTile, 'Банан, мякоть (CoFID)');
+      await tester.ensureVisible(banana);
+      await tester.tap(banana);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(query).controller!.text,
+        'Банан, мякоть (CoFID)',
+      );
+      expect(find.byType(ListTile), findsOneWidget);
+    },
+  );
   test('curated identities, source values and unknown fibre are explicit', () {
     expect(records, hasLength(20));
     expect(records.map((r) => r.id).toSet(), hasLength(20));

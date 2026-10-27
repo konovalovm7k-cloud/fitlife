@@ -360,6 +360,9 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                           : const Icon(Icons.chevron_right),
                       onTap: () => setState(() {
                         _selected = NutritionSource.catalogue(record);
+                        // Keep the selected product and confirmation together;
+                        // the query remains editable to choose another source.
+                        _query.text = record.name;
                         _error = null;
                       }),
                     ),
