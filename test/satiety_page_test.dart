@@ -26,6 +26,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('satiety-score')), findsOneWidget);
       expect(find.textContaining('Неизвестно:'), findsNothing);
+      await reveal(tester, find.byKey(const Key('observe-hunger')));
+      await tester.tap(find.byKey(const Key('observe-hunger')));
+      await tester.pumpAndSettle();
+      expect(find.text('Отметить голод'), findsOneWidget);
+      await reveal(tester, find.text('Пропустить'));
+      await tester.tap(find.text('Пропустить'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       final prefs = await SharedPreferences.getInstance();
@@ -37,7 +44,11 @@ void main() {
   testWidgets('old unconfirmed composition has no score', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: SatietyPage(meal: 'Обед', items: [satietyItem(source: false)]),
+        home: SatietyPage(
+          day: DateTime(2026, 10, 27),
+          meal: 'Обед',
+          items: [satietyItem(source: false)],
+        ),
       ),
     );
     expect(find.byKey(const Key('satiety-unavailable')), findsOneWidget);
@@ -59,6 +70,7 @@ void main() {
             child: child!,
           ),
           home: SatietyPage(
+            day: DateTime(2026, 10, 27),
             meal: 'Обед',
             items: [satietyItem(label: true, fiberKnown: false)],
           ),

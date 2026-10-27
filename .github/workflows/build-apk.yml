@@ -146,6 +146,7 @@ jobs:
             python3 tool/android_today_smoke.py
             python3 tool/android_source_smoke.py
             python3 tool/android_satiety_smoke.py
+            python3 tool/android_hunger_smoke.py
 
       - name: Upload release smoke-test diagnostics
         if: always()

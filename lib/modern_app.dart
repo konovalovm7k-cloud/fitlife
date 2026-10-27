@@ -28,6 +28,8 @@ import 'features/saved_meals/saved_meals.dart';
 import 'features/saved_meals/saved_meal_editor.dart';
 import 'features/saved_meals/saved_meals_page.dart';
 import 'features/satiety/satiety_page.dart';
+import 'features/satiety/hunger_observation.dart';
+import 'features/satiety/hunger_pages.dart';
 
 export 'core/models/diary_item.dart';
 export 'data/built_in_foods.dart';
@@ -759,6 +761,18 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                 icon: const Icon(Icons.show_chart),
                 label: const Text('История веса'),
               ),
+              TextButton.icon(
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => HungerHistoryPage(
+                      repository: HungerRepository(_repository),
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.edit_note),
+                label: const Text('Наблюдения голода'),
+              ),
             ],
           ),
         ),
@@ -998,8 +1012,12 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               onPressed: () => Navigator.push<void>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      SatietyPage(items: List.unmodifiable(items), meal: meal),
+                  builder: (_) => SatietyPage(
+                    items: List.unmodifiable(items),
+                    meal: meal,
+                    day: day,
+                    hungerRepository: HungerRepository(_repository),
+                  ),
                 ),
               ),
               icon: const Icon(Icons.restaurant_menu),

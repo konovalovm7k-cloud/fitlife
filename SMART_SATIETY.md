@@ -4,8 +4,9 @@ This is an unvalidated, descriptive 1–10 food-property score, **not** Holt's
 measured Satiety Index, a health score, a clinical recommendation, a prediction
 of hunger, or a weight-loss target. Do not maximize it or delay eating because
 of it. No hours are output. No API calls, goals, rewards or pet state depend on
-the score. Personal feedback/calibration is a subsequent step, not implemented
-or implied here. Clinical validation is absent.
+the score. Optional local hunger observations are described in
+`HUNGER_OBSERVATIONS.md`; they do not calibrate the formula. Clinical validation
+is absent.
 
 ## What the research supports (and what it does not)
 
@@ -84,6 +85,7 @@ navigation, unchanged saved data, no score for unconfirmed entries and large
 text. These are implementation tests, not evidence that the formula predicts
 satiety. Native smoke tests use synthetic labels in a disposable emulator.
 
-Next step: voluntary hunger observations with timestamps, consent, correction
-and deletion. Do not derive personal coefficients or prediction hours from
-small, biased observations. No current observations are collected or uploaded.
+Voluntary observations now support timestamps, correction and deletion. They
+are saved only on explicit action and never uploaded to the recognition server.
+Do not derive personal coefficients or prediction hours from small, biased
+observations. Calibration remains unimplemented.

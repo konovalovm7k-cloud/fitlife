@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
 import '../../core/models/diary_item.dart';
 import 'satiety_estimate.dart';
+import '../../data/repositories/diary_repository.dart';
+import 'hunger_observation.dart';
+import 'hunger_pages.dart';
 
 class SatietyPage extends StatefulWidget {
-  const SatietyPage({super.key, required this.items, required this.meal});
+  const SatietyPage({
+    super.key,
+    required this.items,
+    required this.meal,
+    required this.day,
+    this.hungerRepository,
+  });
   final List<DiaryItem> items;
   final String meal;
+  final DateTime day;
+  final HungerRepository? hungerRepository;
   @override
   State<SatietyPage> createState() => _SatietyPageState();
 }
 
 class _SatietyPageState extends State<SatietyPage> {
+  late final _observations =
+      widget.hungerRepository ?? HungerRepository(DiaryRepository.withLoader());
   FoodStructure? _structure;
   static const structures = {
     FoodStructure.solid: 'Нужно жевать',
@@ -128,6 +141,33 @@ class _SatietyPageState extends State<SatietyPage> {
           const Text(
             'Если голодны, можно поесть независимо от оценки. '
             'Баллы не меняют цели, награды или состояние питомца.',
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            key: const Key('observe-hunger'),
+            onPressed: () => Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HungerEntryPage(
+                  repository: _observations,
+                  items: widget.items,
+                  meal: widget.meal,
+                  day: widget.day,
+                  structure: _structure,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.edit_note),
+            label: const Text('Отметить голод сейчас'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HungerHistoryPage(repository: _observations),
+              ),
+            ),
+            child: const Text('Мои наблюдения голода'),
           ),
           const SizedBox(height: 16),
           const ExpansionTile(
