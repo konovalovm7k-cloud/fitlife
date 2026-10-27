@@ -34,8 +34,12 @@ class DiarySourceSmoke(SourceSmoke):
             self.wait_for('Продукт и источник', 'В дневнике: Яблоко')
             self.field('source-grams', '150.5')
             self.choose_catalogue('Яблоко')
-            self.scroll_to('Выбрано: Яблоко')
-            self.wait_for('Выбрано: Яблоко', '52.0 ккал на 100 г')
+            # Flutter exposes the selected card's SelectableText URL to native
+            # accessibility. This uniquely identifies selection, unlike the
+            # same product name also present in the search field/result row.
+            selected_url = 'https://health-diet.ru/base_of_food/sostav/15983.php'
+            self.scroll_to(selected_url)
+            self.wait_for(selected_url, '52.0 ккал на 100 г')
             self.capture('diary-source-selection')
             self.tap_scrolled_exact('Подтвердить источник и порцию', max_height=.9)
             self.wait_for('Добавить еду')
@@ -45,8 +49,8 @@ class DiarySourceSmoke(SourceSmoke):
             self.wait_for('Яблоко', 'Состав: health-diet.ru', '150,5 г · 78 ккал')
             self.capture('diary-source-relaunch')
             self.tap_scrolled_exact('Источник состава: Яблоко', max_height=.8)
-            self.scroll_to('Выбрано: Яблоко')
-            self.wait_for('Выбрано: Яблоко', '52.0 ккал на 100 г')
+            self.scroll_to(selected_url)
+            self.wait_for(selected_url, '52.0 ккал на 100 г')
             self.capture('diary-source-restored')
             print('PASS: manual diary entry source correction, 150.5 g / 78 kcal and selected catalogue source survive cold launch')
         except Exception:
