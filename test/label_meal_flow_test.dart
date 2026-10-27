@@ -35,7 +35,7 @@ void main() {
       await reveal(tester, find.byKey(const Key('source-confirm')));
       await tester.tap(find.byKey(const Key('source-confirm')));
       await tester.pumpAndSettle();
-      expect(find.text('СОСТАВ С ЭТИКЕТКИ'), findsOneWidget);
+      expect(find.text('СОСТАВ ПРОДУКТОВ'), findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
       final key = 'diary_${dateKey(DateTime.now())}';
       await prefs.reload();

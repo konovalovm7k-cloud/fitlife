@@ -103,7 +103,7 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
                 children: [
                   Text(
                     widget.analysis.source == MealEstimateSource.manual
-                        ? 'СОСТАВ С ЭТИКЕТКИ'
+                        ? 'СОСТАВ ПРОДУКТОВ'
                         : widget.analysis.source == MealEstimateSource.text
                         ? 'ПРОДУКТЫ ИЗ ОПИСАНИЯ'
                         : 'ПРОДУКТЫ НА ФОТО',

@@ -7,6 +7,7 @@ import 'app/fitlife_theme.dart';
 import 'app/bootstrap.dart';
 import 'app/fitlife_app_frame.dart';
 import 'app/nutrition_goal_format.dart';
+import 'app/portion_format.dart';
 import 'app/state/fitlife_controller.dart';
 import 'app/state/fitlife_state.dart';
 import 'app/state/today_guidance.dart';
@@ -17,6 +18,8 @@ import 'core/models/diary_item.dart';
 import 'data/repositories/diary_repository.dart';
 import 'core/models/nutrition_goal_settings.dart';
 import 'core/nutrition/nutrition_catalog_page.dart';
+import 'core/nutrition/nutrition_engine.dart';
+import 'features/photo_analysis/food_source_page.dart';
 import 'features/photo_analysis/photo_models.dart';
 import 'features/photo_analysis/photo_page.dart';
 import 'features/photo_analysis/photo_settings_page.dart';
@@ -998,12 +1001,22 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                       ? 'AI-оценка по описанию · '
                       : item.food.isPhotoEstimate
                       ? 'Оценка по фото · '
-                      : ''}${item.grams.round()} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · ${item.food.hasKnownFiber ? 'Кл ${item.fiber.round()} г' : 'Клетчатка не указана'}',
+                      : ''}${formatFoodGrams(item.grams)} г · ${item.kcal.round()} ккал · Б ${item.protein.round()} г · ${item.food.hasKnownFiber ? 'Кл ${item.fiber.round()} г' : 'Клетчатка не указана'}',
                 ),
-                trailing: IconButton(
-                  tooltip: 'Изменить порцию',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => _editDiaryItem(item),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Источник состава: ${item.food.name}',
+                      icon: const Icon(Icons.fact_check_outlined),
+                      onPressed: () => _editDiarySource(item),
+                    ),
+                    IconButton(
+                      tooltip: 'Изменить порцию',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _editDiaryItem(item),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1155,6 +1168,62 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
             time: item.time,
           ),
           delete: result.deleted,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editDiarySource(DiaryItem item) async {
+    final targetDay = day;
+    final provenance = item.food.provenance;
+    final source = provenance == null
+        ? null
+        : NutritionSource(
+            name: item.food.name,
+            profile: item.food.profile,
+            provenance: provenance,
+            fiberKnown: item.food.hasKnownFiber,
+          );
+    await Navigator.push<SourcedFoodEdit>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FoodSourcePage(
+          caption: 'В дневнике',
+          allowDelete: false,
+          food: PhotoFood(
+            name: item.food.name,
+            grams: item.grams,
+            confidence: 'low',
+            source: source,
+          ),
+          onSave: (selected) async {
+            final confirmed = selected.source!;
+            NutritionEngine.portion(confirmed, selected.grams);
+            final p = confirmed.profile;
+            await _controller.editEntry(
+              targetDay,
+              DiaryItem(
+                id: item.id,
+                meal: item.meal,
+                time: item.time,
+                grams: selected.grams,
+                food: FoodItem(
+                  id: item.food.id,
+                  name: confirmed.name,
+                  kcal: p.kcal,
+                  protein: p.protein,
+                  fat: p.fat,
+                  carbs: p.carbs,
+                  fiber: p.fiber,
+                  nutrition: p,
+                  hasKnownFiber: confirmed.fiberKnown,
+                  provenance: confirmed.provenance,
+                  isPhotoEstimate: item.food.isPhotoEstimate,
+                  isTextEstimate: item.food.isTextEstimate,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

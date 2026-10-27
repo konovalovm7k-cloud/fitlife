@@ -2,6 +2,7 @@
 import argparse
 import os
 import re
+import time
 from android_features_smoke import FeaturesSmoke
 
 class SourceSmoke(FeaturesSmoke):
@@ -34,22 +35,24 @@ class SourceSmoke(FeaturesSmoke):
             self.tap('Камера')
             self.tap('Ввести состав с этикетки', scroll=True)
             self.wait_for('Продукт и источник')
+            reference = f'SmokeLabel_{time.time_ns():x}'
             for key, value in [('source-grams', '150.5'), ('source-name', 'SourceRice'),
-                               ('source-reference', 'SmokeLabel'), ('source-nutrient-0', '130'),
+                               ('source-reference', reference), ('source-nutrient-0', '130'),
                                ('source-nutrient-1', '2.7'), ('source-nutrient-2', '0.3'),
                                ('source-nutrient-3', '28')]:
                 self.field(key, value)
             self.tap('Подтвердить источник и порцию', scroll=True)
-            self.wait_for('СОСТАВ С ЭТИКЕТКИ', '196 ккал', 'Клетчатка: состав неполный')
+            self.wait_for('СОСТАВ ПРОДУКТОВ', '196 ккал', 'Клетчатка: состав неполный')
             # Keep this fixture separate from the legacy breakfast used by the
             # upgrade harness, independent of the runner's current hour.
             self.tap('Приём пищи')
             self.tap_exact('Перекус')
             self.capture('source-review')
             self.tap('Подтвердить и сохранить', scroll=True)
+            self.wait_for('Фото блюда')
             self.launch()
             self.tap('Питание')
-            self.scroll_to('Состав: SmokeLabel')
+            self.scroll_to(f'Состав: {reference}')
             self.wait_for('SourceRice', '196 ккал', 'Клетчатка не указана')
             self.capture('source-diary-relaunch')
             self.launch()

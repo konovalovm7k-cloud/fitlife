@@ -14,9 +14,19 @@ class SourcedFoodEdit {
 }
 
 class FoodSourcePage extends StatefulWidget {
-  const FoodSourcePage({super.key, this.food, this.startWithLabel = false});
+  const FoodSourcePage({
+    super.key,
+    this.food,
+    this.startWithLabel = false,
+    this.onSave,
+    this.allowDelete = true,
+    this.caption = 'Распознано',
+  });
   final PhotoFood? food;
   final bool startWithLabel;
+  final Future<void> Function(PhotoFood)? onSave;
+  final bool allowDelete;
+  final String caption;
   @override
   State<FoodSourcePage> createState() => _FoodSourcePageState();
 }
@@ -50,6 +60,7 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
   List<NutritionFoodRecord> _records = nutritionDatabase;
   String? _notice;
   String? _error;
+  bool _saving = false;
   @override
   void initState() {
     super.initState();
@@ -95,12 +106,13 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
         : null;
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
+    if (_saving) return;
     final visibleFieldsValid = _form.currentState!.validate();
     // Off-screen fields in a lazy ListView may be unmounted. Validate the full
     // draft, not only the FormFields currently registered with the Form.
     final draftValid =
-        _validateNumber(_grams.text, 3000, min: 1) == null &&
+        _validateNumber(_grams.text, 3000, min: .1) == null &&
         (!_manual ||
             (_name.text.trim().isNotEmpty &&
                 _name.text.trim().length <= 80 &&
@@ -142,22 +154,36 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
       if (source == null) return;
       final grams = _number(_grams.text)!;
       NutritionEngine.portion(source, grams);
-      Navigator.pop(
-        context,
-        SourcedFoodEdit(
-          PhotoFood(
-            name: source.name,
-            grams: grams,
-            confidence: widget.food?.confidence ?? 'low',
-            source: source,
-          ),
-        ),
+      final food = PhotoFood(
+        name: source.name,
+        grams: grams,
+        confidence: widget.food?.confidence ?? 'low',
+        source: source,
       );
+      if (widget.onSave != null) {
+        setState(() {
+          _saving = true;
+          _error = null;
+        });
+        await widget.onSave!(food);
+      }
+      if (mounted) Navigator.pop(context, SourcedFoodEdit(food));
     } on FormatException {
-      setState(
-        () => _error =
-            'Проверьте значения на 100 г: БЖУ не должны превышать массу продукта.',
-      );
+      if (mounted) {
+        setState(
+          () => _error =
+              'Проверьте значения на 100 г: БЖУ не должны превышать массу продукта.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Не удалось сохранить состав. Проверьте выбранные данные и попробуйте ещё раз.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -174,183 +200,201 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
       'Углеводы на 100 г',
       'Клетчатка на 100 г — если указана',
     ];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Продукт и источник')),
-      body: Form(
-        key: _form,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (widget.food != null)
-              Text(
-                'Распознано: ${widget.food!.name}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            const SizedBox(height: 10),
-            const Text(
-              'Проверьте вид продукта и способ приготовления. Похожее название не гарантирует одинаковый состав.',
-            ),
-            const SizedBox(height: 16),
-            Semantics(
-              identifier: 'source-grams',
-              child: TextFormField(
-                controller: _grams,
-                key: const Key('source-grams'),
-                decoration: const InputDecoration(labelText: 'Вес порции, г'),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                validator: (v) => _validateNumber(v, 3000, min: 1),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Продукт и источник')),
+        body: AbsorbPointer(
+          absorbing: _saving,
+          child: Form(
+            key: _form,
+            child: ListView(
+              padding: const EdgeInsets.all(20),
               children: [
-                ChoiceChip(
-                  label: const Text('Из каталога'),
-                  selected: !_manual,
-                  onSelected: (_) => setState(() {
-                    _manual = false;
-                    if (_selected?.provenance.kind == 'label') _selected = null;
-                  }),
+                if (widget.food != null)
+                  Text(
+                    '${widget.caption}: ${widget.food!.name}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Проверьте вид продукта и способ приготовления. Похожее название не гарантирует одинаковый состав.',
                 ),
-                ChoiceChip(
-                  label: const Text('С этикетки'),
-                  selected: _manual,
-                  onSelected: (_) => setState(() => _manual = true),
+                const SizedBox(height: 16),
+                Semantics(
+                  identifier: 'source-grams',
+                  child: TextFormField(
+                    controller: _grams,
+                    key: const Key('source-grams'),
+                    decoration: const InputDecoration(
+                      labelText: 'Вес порции, г',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: (v) => _validateNumber(v, 3000, min: .1),
+                  ),
                 ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Из каталога'),
+                      selected: !_manual,
+                      onSelected: (_) => setState(() {
+                        _manual = false;
+                        if (_selected?.provenance.kind == 'label') {
+                          _selected = null;
+                        }
+                      }),
+                    ),
+                    ChoiceChip(
+                      label: const Text('С этикетки'),
+                      selected: _manual,
+                      onSelected: (_) => setState(() => _manual = true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_manual) ...[
+                  const Text(
+                    'Перенесите состав на 100 г с упаковки. Поля не заполняются ответом AI. Если клетчатка не указана, оставьте её пустой.',
+                  ),
+                  const SizedBox(height: 12),
+                  Semantics(
+                    identifier: 'source-name',
+                    child: TextFormField(
+                      controller: _name,
+                      decoration: const InputDecoration(
+                        labelText: 'Название продукта',
+                      ),
+                      maxLength: 80,
+                      validator: (v) =>
+                          (v ?? '').trim().isEmpty ? 'Укажите продукт' : null,
+                    ),
+                  ),
+                  Semantics(
+                    identifier: 'source-reference',
+                    child: TextFormField(
+                      controller: _reference,
+                      decoration: const InputDecoration(
+                        labelText: 'Источник: марка и название на упаковке',
+                      ),
+                      maxLength: 240,
+                      validator: (v) => (v ?? '').trim().isEmpty
+                          ? 'Укажите, с какой этикетки взят состав'
+                          : null,
+                    ),
+                  ),
+                  for (var i = 0; i < labels.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Semantics(
+                        identifier: 'source-nutrient-$i',
+                        child: TextFormField(
+                          key: Key('source-nutrient-$i'),
+                          controller: _numbers[i],
+                          decoration: InputDecoration(labelText: labels[i]),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          validator: (v) => _validateNumber(
+                            v,
+                            i == 0 ? 1000 : 100,
+                            optional: i == 4,
+                          ),
+                        ),
+                      ),
+                    ),
+                ] else ...[
+                  if (_notice != null) Text(_notice!),
+                  TextField(
+                    controller: _query,
+                    decoration: const InputDecoration(
+                      labelText: 'Поиск в каталоге',
+                      suffixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  if (_selected != null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Выбрано: ${_selected!.name}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text('${_selected!.profile.kcal} ккал на 100 г'),
+                            Text(_selected!.provenance.reference),
+                            SelectableText(_selected!.provenance.url ?? ''),
+                            if (!_selected!.fiberKnown)
+                              const Text('Клетчатка не указана в источнике.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (matches.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'Совпадений нет. Измените запрос или введите состав с этикетки.',
+                      ),
+                    ),
+                  for (final record in matches.take(30))
+                    ListTile(
+                      title: Text(record.name),
+                      subtitle: Text(
+                        '${record.source}\n${record.profile.kcal} ккал на 100 г',
+                      ),
+                      trailing: _selected?.provenance.recordId == record.id
+                          ? const Icon(Icons.check_circle, color: green)
+                          : const Icon(Icons.chevron_right),
+                      onTap: () => setState(() {
+                        _selected = NutritionSource.catalogue(record);
+                        _error = null;
+                      }),
+                    ),
+                  if (matches.length > 30)
+                    const Text(
+                      'Показаны первые 30 результатов. Уточните название.',
+                    ),
+                ],
+                const SizedBox(height: 16),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                FilledButton(
+                  key: const Key('source-confirm'),
+                  onPressed: _saving || (!_manual && _selected == null)
+                      ? null
+                      : _confirm,
+                  child: Text(
+                    _saving ? 'Сохраняем…' : 'Подтвердить источник и порцию',
+                  ),
+                ),
+                if (widget.food != null && widget.allowDelete)
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(context, const SourcedFoodEdit.delete()),
+                    child: const Text('Удалить ингредиент'),
+                  ),
+                const SizedBox(height: 24),
               ],
             ),
-            const SizedBox(height: 16),
-            if (_manual) ...[
-              const Text(
-                'Перенесите состав на 100 г с упаковки. Поля не заполняются ответом AI. Если клетчатка не указана, оставьте её пустой.',
-              ),
-              const SizedBox(height: 12),
-              Semantics(
-                identifier: 'source-name',
-                child: TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(
-                    labelText: 'Название продукта',
-                  ),
-                  maxLength: 80,
-                  validator: (v) =>
-                      (v ?? '').trim().isEmpty ? 'Укажите продукт' : null,
-                ),
-              ),
-              Semantics(
-                identifier: 'source-reference',
-                child: TextFormField(
-                  controller: _reference,
-                  decoration: const InputDecoration(
-                    labelText: 'Источник: марка и название на упаковке',
-                  ),
-                  maxLength: 240,
-                  validator: (v) => (v ?? '').trim().isEmpty
-                      ? 'Укажите, с какой этикетки взят состав'
-                      : null,
-                ),
-              ),
-              for (var i = 0; i < labels.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Semantics(
-                    identifier: 'source-nutrient-$i',
-                    child: TextFormField(
-                      key: Key('source-nutrient-$i'),
-                      controller: _numbers[i],
-                      decoration: InputDecoration(labelText: labels[i]),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) => _validateNumber(
-                        v,
-                        i == 0 ? 1000 : 100,
-                        optional: i == 4,
-                      ),
-                    ),
-                  ),
-                ),
-            ] else ...[
-              if (_notice != null) Text(_notice!),
-              TextField(
-                controller: _query,
-                decoration: const InputDecoration(
-                  labelText: 'Поиск в каталоге',
-                  suffixIcon: Icon(Icons.search),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              if (_selected != null)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Выбрано: ${_selected!.name}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        Text('${_selected!.profile.kcal} ккал на 100 г'),
-                        Text(_selected!.provenance.reference),
-                        SelectableText(_selected!.provenance.url ?? ''),
-                        if (!_selected!.fiberKnown)
-                          const Text('Клетчатка не указана в источнике.'),
-                      ],
-                    ),
-                  ),
-                ),
-              if (matches.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Совпадений нет. Измените запрос или введите состав с этикетки.',
-                  ),
-                ),
-              for (final record in matches.take(30))
-                ListTile(
-                  title: Text(record.name),
-                  subtitle: Text(
-                    '${record.source}\n${record.profile.kcal} ккал на 100 г',
-                  ),
-                  trailing: _selected?.provenance.recordId == record.id
-                      ? const Icon(Icons.check_circle, color: green)
-                      : const Icon(Icons.chevron_right),
-                  onTap: () => setState(() {
-                    _selected = NutritionSource.catalogue(record);
-                    _error = null;
-                  }),
-                ),
-              if (matches.length > 30)
-                const Text(
-                  'Показаны первые 30 результатов. Уточните название.',
-                ),
-            ],
-            const SizedBox(height: 16),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            FilledButton(
-              key: const Key('source-confirm'),
-              onPressed: !_manual && _selected == null ? null : _confirm,
-              child: const Text('Подтвердить источник и порцию'),
-            ),
-            if (widget.food != null)
-              TextButton(
-                onPressed: () =>
-                    Navigator.pop(context, const SourcedFoodEdit.delete()),
-                child: const Text('Удалить ингредиент'),
-              ),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );
