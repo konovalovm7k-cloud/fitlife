@@ -33,6 +33,8 @@ import 'features/saved_meals/saved_meals_page.dart';
 import 'features/satiety/satiety_page.dart';
 import 'features/satiety/hunger_observation.dart';
 import 'features/satiety/hunger_pages.dart';
+import 'features/learning/learning_pages.dart';
+import 'features/learning/nutrition_lessons.dart';
 
 export 'core/models/diary_item.dart';
 export 'data/built_in_foods.dart';
@@ -439,6 +441,28 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         ],
         const SizedBox(height: 14),
         _nextAction(),
+        const SizedBox(height: 14),
+        _card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Один небольшой шаг',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Разберитесь с порцией или составом в коротком уроке. '
+                'Можно выбрать одну тему и вернуться к остальным позже.',
+              ),
+              TextButton.icon(
+                onPressed: _openLessons,
+                icon: const Icon(Icons.menu_book_outlined),
+                label: const Text('Открыть короткие уроки'),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
         Row(
           children: [
@@ -775,6 +799,11 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                 ),
                 icon: const Icon(Icons.edit_note),
                 label: const Text('Наблюдения голода'),
+              ),
+              TextButton.icon(
+                onPressed: _openLessons,
+                icon: const Icon(Icons.menu_book_outlined),
+                label: const Text('Короткие уроки'),
               ),
             ],
           ),
@@ -1358,6 +1387,21 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       ),
     );
     if (mounted) await _controller.load();
+  }
+
+  Future<void> _openLessons() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LearningPage(
+        repository: LearningRepository(_repository),
+        onOpenDiary: _openDiaryFromLesson,
+      ),
+    ),
+  );
+
+  void _openDiaryFromLesson() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (mounted) setState(() => tab = 1);
   }
 
   Future<void> _openSavedMeals() async {
