@@ -46,6 +46,12 @@ List<NutritionFoodRecord> parseFoodCatalog(String text) {
     final protein = value('protein');
     final fat = value('fat');
     final carbs = value('carbs');
+    final fiber = row.containsKey('fiber') ? value('fiber') : null;
+    final water = row.containsKey('water') ? value('water') : null;
+    final reference = row['source_reference'] as String? ?? source;
+    if (reference.trim().isEmpty) {
+      throw const FormatException('Missing source reference');
+    }
     if (protein + fat + carbs > 105 ||
         (kcal == 0 && protein + fat + carbs > 0)) {
       throw const FormatException('Inconsistent nutrition');
@@ -54,14 +60,17 @@ List<NutritionFoodRecord> parseFoodCatalog(String text) {
       NutritionFoodRecord(
         id: 'imported_$id',
         name: name,
-        source: source,
+        source: reference,
         sourceUrl: url.toString(),
         macrosOnly: true,
+        fiberKnown: fiber != null,
         profile: NutritionProfile(
           kcal: kcal,
           protein: protein,
           fat: fat,
           carbs: carbs,
+          fiber: fiber ?? 0,
+          water: water ?? 0,
         ),
       ),
     );

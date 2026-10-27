@@ -72,7 +72,7 @@ class NutritionSource {
       NutritionSource(
         name: record.name,
         profile: record.profile,
-        fiberKnown: !record.macrosOnly,
+        fiberKnown: record.hasKnownFiber,
         provenance: NutritionProvenance(
           kind: 'catalogue',
           reference: record.source,

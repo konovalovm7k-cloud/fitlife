@@ -212,7 +212,10 @@ class FitLifeController extends ChangeNotifier {
               source: entry.food.provenance?.reference ?? '',
               sourceUrl: entry.food.provenance?.url ?? '',
               profile: entry.food.profile,
-              macrosOnly: !entry.food.hasKnownFiber,
+              macrosOnly:
+                  entry.food.profile.vitamins.isEmpty &&
+                  entry.food.profile.minerals.isEmpty,
+              fiberKnown: entry.food.hasKnownFiber,
             ),
             grams: entry.grams,
           ),
@@ -238,7 +241,7 @@ class FitLifeController extends ChangeNotifier {
       carbs: p.carbs,
       fiber: p.fiber,
       nutrition: p,
-      hasKnownFiber: !record.macrosOnly,
+      hasKnownFiber: record.hasKnownFiber,
       provenance: NutritionSource.catalogue(record).provenance,
     );
     if (!foods.any((item) => item.id == food.id)) await saveFood(food);

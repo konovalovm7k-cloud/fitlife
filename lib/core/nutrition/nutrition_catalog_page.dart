@@ -258,7 +258,12 @@ class _DaySummary extends StatelessWidget {
                 _metric('Б', p.protein),
                 _metric('Ж', p.fat),
                 _metric('У', p.carbs),
-                _metric('Клетчатка', p.fiber),
+                _metric(
+                  day.entries.any((e) => !e.food.hasKnownFiber)
+                      ? 'Клетчатка ≥'
+                      : 'Клетчатка',
+                  p.fiber,
+                ),
               ],
             ),
           ],
@@ -419,10 +424,12 @@ class _ProductCard extends StatelessWidget {
               label: const Text('Добавить в дневник'),
             ),
             if (item.macrosOnly)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  'В источнике доступны только калории и БЖУ. Данных о клетчатке и микроэлементах нет.',
+                  item.hasKnownFiber
+                      ? 'Клетчатка: ${_fmt(p.fiber)} г на 100 г. Витамины и минералы в этой подборке не представлены.'
+                      : 'Клетчатка: нет данных. Витамины и минералы в этой подборке не представлены.',
                 ),
               ),
             if (!item.macrosOnly)

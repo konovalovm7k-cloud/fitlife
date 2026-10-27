@@ -8,6 +8,11 @@ class NutritionFoodRecord {
   final NutritionProfile profile;
   final bool macrosOnly;
 
+  /// Independent of the availability of micronutrients. Null retains the
+  /// legacy catalogue convention; imports explicitly declare known fibre.
+  final bool? fiberKnown;
+  bool get hasKnownFiber => fiberKnown ?? !macrosOnly;
+
   const NutritionFoodRecord({
     required this.id,
     required this.name,
@@ -15,6 +20,7 @@ class NutritionFoodRecord {
     required this.sourceUrl,
     required this.profile,
     this.macrosOnly = false,
+    this.fiberKnown,
   });
 }
 
