@@ -9,6 +9,26 @@ def control(label, bounds, clickable="true"):
 
 
 class ScrollTargetTest(unittest.TestCase):
+    def test_last_meal_button_above_fab_can_use_explicit_viewport(self):
+        class Smoke(FeaturesSmoke):
+            def __init__(self):
+                self.target = None
+
+            def read_screen(self):
+                return [control("Satiety", "[130,2123][909,2291]")]
+
+            def adb(self, *args):
+                if args == ("shell", "wm", "size"):
+                    return "Physical size: 1440x3120"
+                raise AssertionError("Already at bottom; scrolling cannot help")
+
+            def tap_node(self, node):
+                self.target = node
+
+        smoke = Smoke()
+        smoke.tap_scrolled_exact("Satiety", max_height=.8)
+        self.assertEqual(smoke.target.get("bounds"), "[130,2123][909,2291]")
+
     def test_ignores_parent_labels_and_controls_under_floating_button(self):
         class Smoke(FeaturesSmoke):
             def __init__(self):

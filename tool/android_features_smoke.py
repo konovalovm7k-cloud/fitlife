@@ -11,7 +11,7 @@ from android_release_smoke import ReleaseSmoke
 
 
 class FeaturesSmoke(ReleaseSmoke):
-    def tap_scrolled_exact(self, label):
+    def tap_scrolled_exact(self, label, *, max_height=.7):
         # Flutter may expose a partially visible item under the floating add
         # button. Bring the exact enabled control into the unobscured viewport.
         width, height = map(int, re.findall(
@@ -23,7 +23,7 @@ class FeaturesSmoke(ReleaseSmoke):
                         or node.get("clickable") != "true"):
                     continue
                 bounds = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
-                if len(bounds) == 4 and height * .1 <= bounds[1] < bounds[3] <= height * .7:
+                if len(bounds) == 4 and height * .1 <= bounds[1] < bounds[3] <= height * max_height:
                     self.tap_node(node)
                     return
             self.adb("shell", "input", "swipe", str(width // 2), str(height * 2 // 3),

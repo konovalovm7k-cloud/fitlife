@@ -9,7 +9,9 @@ class SatietySmoke(FeaturesSmoke):
         try:
             self.launch()
             self.tap('Питание')
-            self.tap_scrolled_exact('Умная сытость · Перекус')
+            # The last meal cannot scroll above 70% of a Pixel 7 Pro screen,
+            # but its entire button remains above the floating add-food button.
+            self.tap_scrolled_exact('Умная сытость · Перекус', max_height=.8)
             self.wait_for('Умная сытость', 'Экспериментальная оценка', 'SmokeLabel')
             self.tap('Нужно жевать', scroll=True)
             self.scroll_to('из 10')
