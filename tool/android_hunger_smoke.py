@@ -25,12 +25,16 @@ class HungerSmoke(FeaturesSmoke):
             fields = [n for n in self.read_screen() if n.get('class') == 'android.widget.EditText']
             if len(fields) != 2:
                 raise AssertionError('Expected hour and minute input fields')
+            hour, minute = map(int, self.adb('shell', 'date', '+%H:%M').strip().split(':'))
+            # A synthetic recent meal gives readable elapsed-time evidence;
+            # near midnight use today's start rather than a future timestamp.
+            entered = (max(0, hour - 2), minute if hour >= 2 else 0)
             for index in range(2):
                 fields = [n for n in self.read_screen() if n.get('class') == 'android.widget.EditText']
                 self.tap_node(fields[index])
                 self.adb('shell', 'input', 'keyevent', '123')
                 self.adb('shell', 'input', 'keyevent', *(['67'] * 4))
-                self.adb('shell', 'input', 'text', '00')
+                self.adb('shell', 'input', 'text', f'{entered[index]:02d}')
                 if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
                     self.adb('shell', 'input', 'keyevent', '4')
             nodes = self.read_screen()
