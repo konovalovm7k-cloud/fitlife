@@ -6,6 +6,35 @@ from android_source_smoke import SourceSmoke
 
 
 class DiarySourceSmoke(SourceSmoke):
+    def choose_manual_food(self, name):
+        # The food picker contains a short nested list. A full-screen swipe
+        # flings past rows on CI; move by half of this list's actual viewport.
+        width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
+        for _ in range(40):
+            nodes = self.read_screen()
+            candidates = []
+            for node in nodes:
+                bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                if (node.get('scrollable') == 'true' and len(bounds) == 4
+                        and 100 < bounds[3] - bounds[1] < height * .5
+                        and bounds[2] - bounds[0] > width * .5):
+                    candidates.append(bounds)
+            if not candidates:
+                raise AssertionError('No nested food list viewport')
+            left, top, right, bottom = min(candidates, key=lambda b: b[3] - b[1])
+            for node in nodes:
+                if (node.get('clickable') != 'true' or node.get('enabled') != 'true'
+                        or self.label(node).strip().split('\n', 1)[0].strip() != name):
+                    continue
+                bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                if len(bounds) == 4 and top <= bounds[1] < bounds[3] <= bottom and bounds[3] - bounds[1] >= 80:
+                    self.tap_node(node)
+                    return
+            extent = bottom - top
+            self.adb('shell', 'input', 'swipe', str((left + right) // 2), str(top + extent * 3 // 4),
+                     str((left + right) // 2), str(top + extent // 4), '450')
+        raise AssertionError(f'No manual food row: {name}')
+
     def choose_catalogue(self, name):
         width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
         for _ in range(10):
@@ -27,7 +56,7 @@ class DiarySourceSmoke(SourceSmoke):
             self.launch()
             self.tap('Питание')
             self.tap('Добавить еду')
-            self.tap('Яблоко', scroll=True)
+            self.choose_manual_food('Яблоко')
             self.wait_for('Выбрано: Яблоко')
             self.tap_exact('Добавить')
             self.tap_scrolled_exact('Источник состава: Яблоко', max_height=.8)
