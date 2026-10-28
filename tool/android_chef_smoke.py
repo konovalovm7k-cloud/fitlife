@@ -9,6 +9,11 @@ class ChefSmoke(SourceSmoke):
     def open_chef(self):
         self.launch()
         self.tap_scrolled_exact('Открыть идеи блюд', max_height=.9)
+        # The catalogue loads asynchronously. Scrolling while its loading
+        # indicator is visible can carry the arriving list past Chef at the top;
+        # the downward-only search then runs to the bottom without finding it.
+        self.wait_for('Простые варианты без запроса AI',
+                      'AI Chef: подобрать из моих продуктов')
         self.tap_scrolled_exact('AI Chef: подобрать из моих продуктов', max_height=.9)
         # Flutter's Android semantics expose the empty pantry EditText by its
         # identifier, but do not expose the visible label as separate text.
