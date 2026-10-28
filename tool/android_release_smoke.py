@@ -156,6 +156,27 @@ class ReleaseSmoke:
             if any(message in logs for message in failures):
                 raise AssertionError(f"Native/release error detected; see {name}-logcat.txt")
 
+    def ensure_manual_egg(self):
+        fixture = '100 г · 157 ккал'
+        # On an upgrade AVD the daily total need not equal this one fixture.
+        # Seek the actual entry before adding, retaining all other diary data.
+        empty = any(self.label(n).strip().startswith('0 ккал\n') for n in self.read_screen())
+        found = False
+        if not empty:
+            try:
+                self.scroll_to(fixture)
+                found = True
+            except AssertionError as error:
+                if str(error) != f'Could not scroll to {fixture!r}':
+                    raise  # Do not hide an unhealthy emulator/other failure.
+        if not found:
+            self.tap(ADD_FOOD)
+            self.tap('Яйцо')
+            self.wait_for('Выбрано: Яйцо')
+            self.tap_exact('Добавить')
+            self.scroll_to(fixture)
+        self.wait_for(fixture, 'Яйцо')
+
     def run(self, apk, expect_auto_connection=False):
         self.adb("install", "-r", str(Path(apk).resolve()))
         try:
@@ -207,16 +228,11 @@ class ReleaseSmoke:
             # Exercise the controller -> diary adapter -> JNI preferences path.
             # The disposable CI AVD starts with no diary; no data is cleared.
             self.tap("Питание")
-            nodes = self.read_screen()
-            if not any("157 ккал" in self.label(node) for node in nodes):
-                self.tap(ADD_FOOD)
-                self.tap("Яйцо")
-                self.wait_for("Выбрано: Яйцо")
-                self.tap_exact("Добавить")
-            self.wait_for("157 ккал")
+            self.ensure_manual_egg()
             self.launch()
             self.tap("Питание")
-            self.wait_for("157 ккал", "Яйцо")
+            self.scroll_to('100 г · 157 ккал')
+            self.wait_for('100 г · 157 ккал', 'Яйцо')
             self.capture("manual-diary-relaunch")
             self.tap(CAMERA)
             self.tap(CONNECT)

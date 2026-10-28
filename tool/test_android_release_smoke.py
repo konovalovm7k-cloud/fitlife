@@ -1,6 +1,6 @@
 import unittest
 import xml.etree.ElementTree as ET
-from android_release_smoke import ReleaseSmoke, WATER
+from android_release_smoke import ReleaseSmoke, WATER, ADD_FOOD
 
 
 def dialog(title, *, package="android", close=True):
@@ -73,6 +73,46 @@ class LauncherAnrTest(unittest.TestCase):
         smoke.tap(WATER, scroll=True)
         self.assertEqual(smoke.taps, ["android:id/aerr_close", "water"])
         self.assertEqual(smoke.swipes, 1)
+
+
+class DiaryFixtureTest(unittest.TestCase):
+    def smoke(self, *, empty=False, scroll_error=None):
+        class Smoke(ReleaseSmoke):
+            def __init__(self):
+                self.actions = []
+            def read_screen(self):
+                return [ET.Element('node', {'content-desc': ('0' if empty else '235') + ' ккал\nОсталось'})]
+            def scroll_to(self, label):
+                self.actions.append(('scroll', label))
+                if scroll_error:
+                    raise AssertionError(scroll_error)
+                return []
+            def tap(self, label):
+                self.actions.append(('tap', label))
+            def tap_exact(self, label):
+                self.actions.append(('tap_exact', label))
+            def wait_for(self, *labels):
+                self.actions.append(('wait', labels))
+        return Smoke()
+
+    def test_occupied_diary_seeks_real_entry_without_adding_another(self):
+        smoke = self.smoke()
+        smoke.ensure_manual_egg()
+        self.assertEqual(smoke.actions, [('scroll', '100 г · 157 ккал'),
+                                         ('wait', ('100 г · 157 ккал', 'Яйцо'))])
+
+    def test_empty_diary_adds_fixture_then_checks_entry_not_daily_total(self):
+        smoke = self.smoke(empty=True)
+        smoke.ensure_manual_egg()
+        self.assertEqual(smoke.actions[0], ('tap', ADD_FOOD))
+        self.assertEqual(smoke.actions[-2:], [('scroll', '100 г · 157 ккал'),
+                                             ('wait', ('100 г · 157 ккал', 'Яйцо'))])
+
+    def test_unhealthy_emulator_is_not_treated_as_missing_fixture(self):
+        smoke = self.smoke(scroll_error='Repeated Pixel Launcher ANR: emulator is unhealthy')
+        with self.assertRaisesRegex(AssertionError, 'unhealthy'):
+            smoke.ensure_manual_egg()
+        self.assertFalse(any(a[0] == 'tap' for a in smoke.actions))
 
 
 if __name__ == "__main__":

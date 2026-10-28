@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:fitlife/main.dart';
+import 'package:fitlife/features/photo_analysis/photo_review_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,6 +37,14 @@ void main() {
       await tester.tap(find.byKey(const Key('source-confirm')));
       await tester.pumpAndSettle();
       expect(find.text('СОСТАВ ПРОДУКТОВ'), findsOneWidget);
+      final review = find.byType(PhotoReviewPage);
+      final draftId = tester.widget<PhotoReviewPage>(review).analysis.requestId;
+      ModalRoute.of(tester.element(review))!.changedExternalState();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<PhotoReviewPage>(review).analysis.requestId,
+        draftId,
+      );
       final prefs = await SharedPreferences.getInstance();
       final key = 'diary_${dateKey(DateTime.now())}';
       await prefs.reload();

@@ -19,16 +19,17 @@ Future<bool> openLabelMeal(
     ),
   );
   if (!context.mounted || item?.food == null) return false;
+  final analysis = PhotoAnalysis(
+    requestId: photoRequestId(),
+    items: [item!.food!],
+    warnings: const [],
+    source: MealEstimateSource.manual,
+  );
   return await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => PhotoReviewPage(
-            analysis: PhotoAnalysis(
-              requestId: photoRequestId(),
-              items: [item!.food!],
-              warnings: const [],
-              source: MealEstimateSource.manual,
-            ),
+            analysis: analysis,
             day: day,
             initialMeal: meal,
             onSave: onSave,
