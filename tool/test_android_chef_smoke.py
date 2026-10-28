@@ -5,6 +5,21 @@ from android_chef_smoke import ChefSmoke
 
 
 class ChefNavigationTest(unittest.TestCase):
+    def test_restored_ime_is_hidden_without_scrolling_the_keyboard(self):
+        smoke = object.__new__(ChefSmoke)
+        smoke.adb = Mock(return_value='mInputShown=true')
+        smoke.hide_pantry_keyboard()
+        self.assertEqual(smoke.adb.call_args_list, [
+            call('shell', 'dumpsys', 'input_method'),
+            call('shell', 'input', 'keyevent', '4'),
+        ])
+
+    def test_hidden_ime_does_not_receive_back_that_would_pop_chef(self):
+        smoke = object.__new__(ChefSmoke)
+        smoke.adb = Mock(return_value='mInputShown=false')
+        smoke.hide_pantry_keyboard()
+        smoke.adb.assert_called_once_with('shell', 'dumpsys', 'input_method')
+
     def smoke(self, enabled='true'):
         smoke = object.__new__(ChefSmoke)
         smoke.launch = Mock()
