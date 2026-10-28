@@ -13,6 +13,7 @@ class FoodItem {
     this.nutrition,
     this.isPhotoEstimate = false,
     this.isTextEstimate = false,
+    this.isChefSuggestion = false,
     this.hasKnownFiber = true,
     this.provenance,
   });
@@ -26,6 +27,7 @@ class FoodItem {
   final NutritionProfile? nutrition;
   final bool isPhotoEstimate;
   final bool isTextEstimate;
+  final bool isChefSuggestion;
   final bool hasKnownFiber;
   final NutritionProvenance? provenance;
   NutritionProfile get profile =>
@@ -48,6 +50,7 @@ class FoodItem {
     if (nutrition != null) 'nutrition': nutrition!.toJson(),
     if (isPhotoEstimate) 'photoEstimate': true,
     if (isTextEstimate) 'textEstimate': true,
+    if (isChefSuggestion) 'chefSuggestion': true,
     if (!hasKnownFiber) 'fiberKnown': false,
     if (provenance != null) 'nutritionSource': provenance!.toJson(),
   };
@@ -61,6 +64,7 @@ class FoodItem {
     fiber: _storedNumber(json['fiber']),
     isPhotoEstimate: json['photoEstimate'] == true,
     isTextEstimate: json['textEstimate'] == true,
+    isChefSuggestion: json['chefSuggestion'] == true,
     hasKnownFiber: json['fiberKnown'] != false,
     provenance: json['nutritionSource'] == null
         ? null

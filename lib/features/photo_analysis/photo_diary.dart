@@ -19,6 +19,7 @@ Future<List<DiaryItem>> savePhotoMeal(
     MealEstimateSource.text => 'text',
     MealEstimateSource.photo => 'photo',
     MealEstimateSource.manual => 'source',
+    MealEstimateSource.chef => 'chef',
   };
   for (var i = 0; i < meal.items.length; i++) {
     final item = meal.items[i];
@@ -49,6 +50,7 @@ Future<List<DiaryItem>> savePhotoMeal(
           provenance: source.provenance,
           isPhotoEstimate: meal.source == MealEstimateSource.photo,
           isTextEstimate: meal.source == MealEstimateSource.text,
+          isChefSuggestion: meal.source == MealEstimateSource.chef,
         ),
       ),
     );

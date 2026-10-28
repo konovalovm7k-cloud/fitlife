@@ -24,7 +24,9 @@ class SavedMeal {
   bool get estimated => items.any(
     (item) =>
         item.food.provenance == null &&
-        (item.food.isPhotoEstimate || item.food.isTextEstimate),
+        (item.food.isPhotoEstimate ||
+            item.food.isTextEstimate ||
+            item.food.isChefSuggestion),
   );
 
   void validate() {

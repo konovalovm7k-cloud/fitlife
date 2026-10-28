@@ -102,7 +102,9 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.analysis.source == MealEstimateSource.manual
+                    widget.analysis.source == MealEstimateSource.chef
+                        ? 'ИДЕЯ AI · ИСТОЧНИКИ СОСТАВА'
+                        : widget.analysis.source == MealEstimateSource.manual
                         ? 'СОСТАВ ПРОДУКТОВ'
                         : widget.analysis.source == MealEstimateSource.text
                         ? 'ПРОДУКТЫ ИЗ ОПИСАНИЯ'
@@ -146,7 +148,9 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              widget.analysis.source == MealEstimateSource.manual
+              widget.analysis.source == MealEstimateSource.chef
+                  ? 'AI предложил сочетание и массу готовых продуктов. Состав рассчитан по выбранным источникам. Проверьте продукт, состояние и порцию; источники и ингредиенты можно изменить перед записью.'
+                  : widget.analysis.source == MealEstimateSource.manual
                   ? 'Проверьте выбранные источники состава и массу порций. Масло, соусы и другие ингредиенты добавьте перед сохранением, если их здесь нет.'
                   : 'AI предлагает только продукт и примерную массу. Выберите источник состава для каждого ингредиента и проверьте порцию. Масло и соусы добавьте отдельно, если они не учтены в блюде.',
             ),

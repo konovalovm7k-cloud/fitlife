@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'photo_models.dart';
+import '../chef/chef_catalogue.dart';
 
 class PhotoFailure implements Exception {
   const PhotoFailure(this.message);
@@ -151,16 +152,39 @@ class PhotoService {
     );
   }
 
+  Future<PhotoAnalysis> suggestMeal(
+    PhotoConnection connection,
+    String text,
+    ChefCatalogue catalogue,
+  ) {
+    final description = text.trim();
+    if (description.isEmpty ||
+        description.length > 2000 ||
+        RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f]').hasMatch(description)) {
+      throw const PhotoFailure('Укажите продукты: от 1 до 2000 символов.');
+    }
+    return _send(
+      connection,
+      Uint8List.fromList(utf8.encode(jsonEncode({'text': description}))),
+      'application/json',
+      MealEstimateSource.chef,
+      catalogue: catalogue,
+    );
+  }
+
   Future<PhotoAnalysis> _send(
     PhotoConnection connection,
     Uint8List body,
     String contentType,
-    MealEstimateSource source,
-  ) async {
+    MealEstimateSource source, {
+    ChefCatalogue? catalogue,
+  }) async {
     final id = photoRequestId();
     try {
       return await (() async {
-        final endpoint = source == MealEstimateSource.text
+        final endpoint = source == MealEstimateSource.chef
+            ? connection.endpoint.replace(path: '/v2/chef')
+            : source == MealEstimateSource.text
             ? connection.endpoint.replace(path: '/v2/identify-text')
             : connection.endpoint.replace(path: '/v2/identify');
         final request = http.Request('POST', endpoint)
@@ -175,6 +199,14 @@ class PhotoService {
         if (response.statusCode != 200) {
           unawaited(response.stream.listen((_) {}).cancel());
           throw PhotoFailure(switch (response.statusCode) {
+            400 || 413 || 415 when source == MealEstimateSource.chef =>
+              'Сервер не принял список продуктов. Сократите текст и проверьте описание.',
+            422 when source == MealEstimateSource.chef =>
+              'Не удалось подобрать сочетание. Уточните готовые продукты или выберите локальную идею.',
+            429 when source == MealEstimateSource.chef =>
+              'Лимит AI-запросов исчерпан. Локальные идеи работают без запроса.',
+            404 when source == MealEstimateSource.chef =>
+              'Сервер ещё не поддерживает AI Chef. Используйте локальные идеи или обновите сервер.',
             401 ||
             403 => 'Код доступа не принят. Проверьте подключение к серверу.',
             400 when source == MealEstimateSource.text =>
@@ -203,11 +235,14 @@ class PhotoService {
             throw const FormatException('Response too large');
           }
         }
-        return PhotoAnalysis.fromJson(
-          jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>,
-          id,
-          source: source,
-        );
+        final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+        if (source == MealEstimateSource.chef) {
+          if (catalogue == null) {
+            throw const FormatException('Missing Chef catalogue');
+          }
+          return catalogue.resolve(data, id);
+        }
+        return PhotoAnalysis.fromJson(data, id, source: source);
       })().timeout(timeout);
     } on PhotoFailure {
       rethrow;

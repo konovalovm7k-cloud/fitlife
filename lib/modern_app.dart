@@ -1051,7 +1051,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 subtitle: Text(
-                  '${item.food.provenance != null
+                  '${item.food.isChefSuggestion ? 'Идея AI · ' : ''}${item.food.provenance != null
                       ? 'Состав: ${item.food.provenance!.reference} · '
                       : item.food.isTextEstimate
                       ? 'AI-оценка по описанию · '
@@ -1276,6 +1276,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
                   provenance: confirmed.provenance,
                   isPhotoEstimate: item.food.isPhotoEstimate,
                   isTextEstimate: item.food.isTextEstimate,
+                  isChefSuggestion: item.food.isChefSuggestion,
                 ),
               ),
             );

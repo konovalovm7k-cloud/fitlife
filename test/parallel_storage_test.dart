@@ -70,7 +70,7 @@ void main() {
     },
   );
   test(
-    'photo, text and offline label batches cannot overwrite concurrent manual entries',
+    'photo, text, offline label and Chef batches cannot overwrite concurrent manual entries',
     () async {
       final repository = DiaryRepository(await SharedPreferences.getInstance());
       await Future.wait([
@@ -87,11 +87,14 @@ void main() {
           ),
       ]);
       final saved = await repository.updateDay(date, (current) => current);
-      expect(saved.length, 4);
+      expect(saved.length, 1 + MealEstimateSource.values.length);
+      expect(saved.map((item) => item.id).toSet(), hasLength(saved.length));
       expect(saved.where((item) => item.id.startsWith('source_')).length, 1);
       expect(saved.map((item) => item.id), contains('manual'));
       expect(saved.where((item) => item.food.isPhotoEstimate).length, 1);
       expect(saved.where((item) => item.food.isTextEstimate).length, 1);
+      expect(saved.where((item) => item.food.isChefSuggestion).length, 1);
+      expect(saved.where((item) => item.id.startsWith('chef_')).length, 1);
     },
   );
   for (final throws in [false, true]) {

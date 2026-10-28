@@ -3,7 +3,7 @@ import '../../core/nutrition/nutrition_engine.dart';
 
 const photoMeals = ['Завтрак', 'Обед', 'Ужин', 'Перекус'];
 
-enum MealEstimateSource { photo, text, manual }
+enum MealEstimateSource { photo, text, manual, chef }
 
 const identificationWarnings = {
   'uncertain_portion': 'Уточните массу порции.',
