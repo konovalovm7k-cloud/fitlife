@@ -7,6 +7,26 @@ CERTIFICATE = f'Signer #1 certificate SHA-256 digest: {CERTIFICATE_SHA256}\n'
 
 
 class ReleaseIdentityTest(unittest.TestCase):
+    def test_build_tools_37_observed_scheme_record_keeps_expected_certificate(self):
+        # Exact public line captured by failed CI 40744181013, build-tools 37.
+        record = f'V2 Signer: certificate SHA-256 digest: {CERTIFICATE_SHA256}\n'
+        self.assertEqual(verify_identity(PACKAGE, record, ('4.6.15', '29'))['certificateSha256'],
+                         CERTIFICATE_SHA256)
+        same_key_schemes = record + record.replace('V2 Signer', 'V3.1 Signer')
+        self.assertEqual(verify_identity(PACKAGE, same_key_schemes, ('4.6.15', '29'))['versionCode'], 29)
+
+    def test_scheme_records_cannot_hide_wrong_keys_unknown_roles_or_extra_signers(self):
+        record = f'V2 Signer: certificate SHA-256 digest: {CERTIFICATE_SHA256}\n'
+        for invalid in (
+                record.replace(CERTIFICATE_SHA256, 'a' * 64),
+                record + record.replace('V2 Signer', 'V3 Signer').replace(CERTIFICATE_SHA256, 'a' * 64),
+                record + CERTIFICATE.replace('#1', '#2'),
+                record + record,
+                record + record.replace('V2 Signer', 'Unrecognized Signer'),
+                record + record.replace('V2 Signer', 'V2 Signer #2')):
+            with self.subTest(record=invalid), self.assertRaises(ValueError):
+                verify_identity(PACKAGE, invalid, ('4.6.15', '29'))
+
     def test_expected_release_identity_is_accepted(self):
         result = verify_identity(PACKAGE, CERTIFICATE, ('4.6.15', '29'))
         self.assertEqual(result['versionCode'], 29)

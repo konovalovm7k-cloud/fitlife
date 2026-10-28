@@ -1,4 +1,7 @@
 import unittest
+import contextlib
+import io
+from unittest.mock import Mock
 import xml.etree.ElementTree as ET
 from android_features_smoke import FeaturesSmoke
 
@@ -9,6 +12,42 @@ def control(label, bounds, clickable="true"):
 
 
 class ScrollTargetTest(unittest.TestCase):
+    def test_pending_template_write_is_acknowledged_before_force_stop(self):
+        smoke = object.__new__(FeaturesSmoke)
+        pending = False
+        acknowledged = False
+
+        def launch():
+            if pending:
+                raise AssertionError('Force-stop before committed template acknowledgement')
+
+        def tap(label, **_):
+            nonlocal pending
+            if label == 'Сохранить в мои блюда':
+                pending = True
+
+        def wait_for(*labels):
+            nonlocal pending, acknowledged
+            # This home/FAB screen returns only after the editor has awaited
+            # repository.save and popped. All other mocked reads cannot commit.
+            if labels == ('Добавить еду', 'Прогресс') and pending:
+                pending = False
+                acknowledged = True
+            return []
+
+        smoke.launch = Mock(side_effect=launch)
+        smoke.tap = Mock(side_effect=tap)
+        smoke.tap_scrolled_exact = Mock(side_effect=tap)
+        smoke.tap_exact = Mock()
+        smoke.set_number = Mock()
+        smoke.read_screen = Mock(return_value=[])
+        smoke.wait_for = Mock(side_effect=wait_for)
+        smoke.capture = Mock()
+        with contextlib.redirect_stdout(io.StringIO()):
+            smoke.run_features()
+        self.assertTrue(acknowledged)
+        self.assertFalse(pending)
+
     def test_source_confirm_button_at_ci_scroll_extent_is_fully_available(self):
         button = control('Подтвердить источник и порцию', '[70,2661][1370,2836]')
 

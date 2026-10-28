@@ -25,7 +25,7 @@ native Android cases remain required; no tests or signing settings are removed.
 Five unit tests reject changed/missing/multiple signers, another applicationId,
 stale version metadata, a debuggable APK, malformed package output and missing
 or ambiguous pubspec versions. Prerelease version names remain supported.
-Local combined harness: 36 passing tests; actionlint passes.
+Local combined harness: 38 passing tests; actionlint passes.
 
 Actual APK controls on 28 October 2026:
 
@@ -41,3 +41,12 @@ This patch changes tools/workflow/documentation only; app version, APK sources,
 storage and signing configuration do not change. The underlying app's local
 245 Flutter tests, signed build and native update/task checks remain applicable.
 The new Linux CI gate must pass separately before this patch is integrated.
+
+CI 40744181013 used build-tools 37.0.0 and printed the correct certificate as
+"V2 Signer: certificate SHA-256 digest: ...". The previous parser expected
+the build-tools 36 "Signer #1" prefix and rejected this valid format. The
+parser now checks every certificate record across recognized signature schemes.
+Each scheme must still have one signer with the exact existing fingerprint;
+wrong keys, extra signers, duplicated roles and unknown certificate roles fail.
+Two regressions include the captured SDK 37 line and mixed-scheme negative cases.
+The expected certificate and the actual cryptographic verification are unchanged.
