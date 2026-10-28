@@ -24,7 +24,7 @@ class CatalogueSmoke(DiarySourceSmoke):
             self.field('source-search', 'flesh%sonly%sbananas')
             self.wait_for(name)
             self.capture('catalogue-source-search')
-            self.tap_scrolled_exact(name, max_height=.9)
+            self.choose_catalogue(name)
             # The final button is fully above Android's navigation area, but
             # below 90% when the enlarged catalogue reaches its scroll extent.
             self.tap_scrolled_exact('Подтвердить источник и порцию', max_height=.96)
