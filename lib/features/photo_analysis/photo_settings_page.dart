@@ -91,7 +91,7 @@ class _PhotoSettingsPageState extends State<PhotoSettingsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Распознавание по фото')),
+    appBar: AppBar(title: const Text('Подключение AI')),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [

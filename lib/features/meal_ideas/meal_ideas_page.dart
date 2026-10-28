@@ -7,6 +7,7 @@ import '../photo_analysis/photo_models.dart';
 import '../photo_analysis/photo_review_page.dart';
 import '../photo_analysis/photo_service.dart';
 import 'meal_ideas.dart';
+import '../chef/chef_page.dart';
 
 class MealIdeasPage extends StatefulWidget {
   const MealIdeasPage({
@@ -71,6 +72,26 @@ class _MealIdeasPageState extends State<MealIdeasPage> {
     }
   }
 
+  Future<void> _openChef() async {
+    if (_reviewing) return;
+    setState(() => _reviewing = true);
+    try {
+      final saved = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChefPage(
+            day: widget.day,
+            meal: widget.initialMeal,
+            onSave: widget.onSave,
+          ),
+        ),
+      );
+      if (mounted && saved == true) Navigator.pop(context, true);
+    } finally {
+      if (mounted) setState(() => _reviewing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Идеи блюд')),
@@ -106,6 +127,12 @@ class _MealIdeasPageState extends State<MealIdeasPage> {
             const SizedBox(height: 8),
             const Text(
               'Порция здесь — пример, а не личная норма. Взвешивайте съедобную часть в указанном состоянии. Перед записью можно изменить ингредиенты, источники и массу.',
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _reviewing ? null : _openChef,
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: const Text('AI Chef: подобрать из моих продуктов'),
             ),
             const SizedBox(height: 12),
             Wrap(
