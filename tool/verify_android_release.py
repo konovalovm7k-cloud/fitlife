@@ -36,7 +36,12 @@ def verify_identity(badging, certificates, expected_version):
         raise ValueError('APK is debuggable')
     digests = re.findall(r'^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$', certificates, re.M)
     if len(digests) != 1 or digests[0].replace(':', '').lower() != CERTIFICATE_SHA256:
-        raise ValueError('APK certificate differs from the existing release signature')
+        # These are public certificate fingerprints, never keystore contents or
+        # passwords. Preserve evidence if a build-tools format or signer differs.
+        reported = [line[:256] for line in certificates.splitlines()
+                    if 'certificate' in line.lower() and 'sha-256' in line.lower()]
+        raise ValueError('APK certificate differs from the existing release signature; '
+                         f'public certificate records: {reported[:8]!r}')
     return {'applicationId': package['name'], 'versionName': actual_version[0],
             'versionCode': int(actual_version[1]), 'certificateSha256': CERTIFICATE_SHA256}
 
@@ -66,10 +71,12 @@ def main():
     parser.add_argument('--pubspec', type=Path, default=Path(__file__).resolve().parents[1] / 'pubspec.yaml')
     parser.add_argument('--android-sdk', default=os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT'))
     args = parser.parse_args()
+    tool_version = 'unresolved'
     try:
         if not args.android_sdk:
             raise ValueError('Set ANDROID_HOME or pass --android-sdk')
         aapt, apksigner = build_tools(args.android_sdk)
+        tool_version = aapt.parent.name
         # apksigner first verifies the actual APK signature, not just a printed
         # certificate. Neither command needs the keystore or its passwords.
         certificates = run_tool([apksigner, 'verify', '--print-certs', args.apk.resolve()])
@@ -79,7 +86,7 @@ def main():
             identity['apkSha256'] = hashlib.file_digest(source, 'sha256').hexdigest()
         print(json.dumps(identity, ensure_ascii=False, indent=2))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
-        raise SystemExit(f'Android release verification failed: {error}') from None
+        raise SystemExit(f'Android release verification failed [build-tools {tool_version}]: {error}') from None
 
 
 if __name__ == '__main__':
