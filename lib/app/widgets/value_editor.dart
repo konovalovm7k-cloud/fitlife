@@ -13,14 +13,23 @@ class NumberFieldSpec {
   final double max;
 }
 
+class ChoiceFieldSpec {
+  const ChoiceFieldSpec(this.label, this.value, this.options);
+  final String label;
+  final String value;
+  final List<String> options;
+}
+
 class ValueEditResult {
   const ValueEditResult({
     this.values = const [],
     this.name,
+    this.choice,
     this.deleted = false,
   });
   final List<double> values;
   final String? name;
+  final String? choice;
   final bool deleted;
 }
 
@@ -35,6 +44,7 @@ class ValueEditorDialog extends StatefulWidget {
     this.saveLabel = 'Сохранить',
     this.onSave,
     this.summaryBuilder,
+    this.choice,
   });
 
   final String title;
@@ -45,6 +55,7 @@ class ValueEditorDialog extends StatefulWidget {
   final String? Function(List<double>)? validate;
   final Future<void> Function(ValueEditResult)? onSave;
   final String? Function(List<double>)? summaryBuilder;
+  final ChoiceFieldSpec? choice;
 
   @override
   State<ValueEditorDialog> createState() => _ValueEditorDialogState();
@@ -56,6 +67,7 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
       .map((field) => TextEditingController(text: field.value.toString()))
       .toList();
   late final _name = TextEditingController(text: widget.initialName);
+  late String? _choice = widget.choice?.value;
   String? _error;
   bool _saving = false;
 
@@ -95,7 +107,9 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
     final error = widget.validate?.call(values);
     setState(() => _error = error);
     if (error != null) return;
-    _submit(ValueEditResult(values: values, name: _name.text.trim()));
+    _submit(
+      ValueEditResult(values: values, name: _name.text.trim(), choice: _choice),
+    );
   }
 
   Future<void> _submit(ValueEditResult result) async {
@@ -165,6 +179,25 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
                     : (_) => setState(() => _error = null),
               ),
               if (i < widget.fields.length - 1) const SizedBox(height: 12),
+            ],
+            if (widget.choice case final choice?) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _choice,
+                isExpanded: true,
+                decoration: InputDecoration(labelText: choice.label),
+                items: choice.options
+                    .map(
+                      (option) =>
+                          DropdownMenuItem(value: option, child: Text(option)),
+                    )
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _choice = value),
+                validator: (value) =>
+                    choice.options.contains(value) ? null : 'Выберите значение',
+              ),
             ],
             if (_summaryText case final summary?) ...[
               const SizedBox(height: 12),

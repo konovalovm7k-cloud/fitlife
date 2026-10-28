@@ -1205,11 +1205,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         title: item.food.name,
         allowDelete: true,
         fields: [NumberFieldSpec('Граммы', item.grams, min: 0.1)],
+        choice: ChoiceFieldSpec('Приём пищи', item.meal, [
+          if (!mealNames.contains(item.meal)) item.meal,
+          ...mealNames,
+        ]),
         onSave: (result) => _controller.editEntry(
           targetDay,
           DiaryItem(
             id: item.id,
-            meal: item.meal,
+            meal: result.choice ?? item.meal,
             food: item.food,
             grams: result.deleted ? item.grams : result.values.first,
             time: item.time,
