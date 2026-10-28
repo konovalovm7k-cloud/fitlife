@@ -70,7 +70,10 @@ class DiarySourceSmoke(SourceSmoke):
             self.scroll_to(selected_url)
             self.wait_for(selected_url, '52.0 ккал на 100 г')
             self.capture('diary-source-selection')
-            self.tap_scrolled_exact('Подтвердить источник и порцию', max_height=.9)
+            # On CI the complete enabled button ends at y=2836/3120 (90.9%).
+            # It is above Android navigation; the generic 90% cutoff excludes
+            # it even after the form reaches its scroll extent.
+            self.tap_scrolled_exact('Подтвердить источник и порцию', max_height=.96)
             self.wait_for('Добавить еду')
             self.launch()
             self.tap('Питание')
