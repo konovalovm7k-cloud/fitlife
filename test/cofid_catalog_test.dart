@@ -116,14 +116,26 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(row);
       await tester.pumpAndSettle();
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       expect(tester.widget<TextField>(query).controller!.text, apple.name);
+      await reveal(tester, row);
       expect(find.byType(ListTile), findsOneWidget);
+      await reveal(tester, find.byKey(const Key('source-confirm')));
       expect(
         tester
             .widget<FilledButton>(find.byKey(const Key('source-confirm')))
             .onPressed,
         isNotNull,
       );
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(query);
       await tester.enterText(query, 'Банан');
       await tester.pumpAndSettle();
@@ -131,10 +143,16 @@ void main() {
       await tester.ensureVisible(banana);
       await tester.tap(banana);
       await tester.pumpAndSettle();
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       expect(
         tester.widget<TextField>(query).controller!.text,
         'Банан, мякоть (CoFID)',
       );
+      await reveal(tester, banana);
       expect(find.byType(ListTile), findsOneWidget);
     },
   );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../app/fitlife_theme.dart';
+import '../../app/portion_format.dart';
 import '../../core/models/nutrition_profile.dart';
 import '../../core/nutrition/food_catalog_import.dart';
 import '../../core/nutrition/nutrition_database.dart';
@@ -65,7 +66,90 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
   @override
   void initState() {
     super.initState();
+    for (final c in [_grams, _name, _reference, ..._numbers]) {
+      c.addListener(_refreshPreview);
+    }
     _load();
+  }
+
+  void _refreshPreview() {
+    if (mounted) setState(() {});
+  }
+
+  NutritionSource? get _draftSource {
+    if (!_manual) return _selected;
+    final numbers = _numbers.map((c) => _number(c.text)).toList();
+    if (numbers.take(4).any((value) => value == null) ||
+        (_numbers[4].text.trim().isNotEmpty && numbers[4] == null)) {
+      return null;
+    }
+    return NutritionSource(
+      name: _name.text.trim(),
+      provenance: NutritionProvenance(
+        kind: 'label',
+        reference: _reference.text.trim(),
+      ),
+      fiberKnown: _numbers[4].text.trim().isNotEmpty,
+      profile: NutritionProfile(
+        kcal: numbers[0]!,
+        protein: numbers[1]!,
+        fat: numbers[2]!,
+        carbs: numbers[3]!,
+        fiber: numbers[4] ?? 0,
+      ),
+    );
+  }
+
+  Widget _portionPreview() {
+    final source = _draftSource;
+    final grams = _number(_grams.text);
+    NutritionProfile? total;
+    if (source != null && grams != null) {
+      try {
+        total = NutritionEngine.portion(source, grams);
+      } on FormatException {
+        // Incomplete/invalid drafts have no calculated facts; never show the
+        // previous valid portion or substitute zero for missing nutrition.
+      }
+    }
+    return Card(
+      key: const Key('source-portion-preview'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: total == null
+            ? const Text(
+                'Выберите источник и укажите корректную порцию, чтобы увидеть расчёт.',
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Для вашей порции · ${formatFoodGrams(grams!)} г',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(source!.name),
+                  Text('Источник: ${source.provenance.reference}'),
+                  Text(
+                    '${total.kcal.round()} ккал',
+                    key: const Key('source-portion-kcal'),
+                  ),
+                  Text(
+                    'Белки ${total.protein.toStringAsFixed(1)} г · '
+                    'Жиры ${total.fat.toStringAsFixed(1)} г · Углеводы ${total.carbs.toStringAsFixed(1)} г',
+                  ),
+                  Text(
+                    source.fiberKnown
+                        ? 'Клетчатка ${total.fiber.toStringAsFixed(1)} г'
+                        : 'Клетчатка не указана в источнике.',
+                    key: const Key('source-portion-fiber'),
+                  ),
+                  const Text(
+                    'Расчёт по выбранному источнику. Запись изменится только после подтверждения.',
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 
   Future<void> _load() async {
@@ -135,23 +219,7 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
       return;
     }
     try {
-      final source = _manual
-          ? NutritionSource(
-              name: _name.text.trim(),
-              provenance: NutritionProvenance(
-                kind: 'label',
-                reference: _reference.text.trim(),
-              ),
-              fiberKnown: _numbers[4].text.trim().isNotEmpty,
-              profile: NutritionProfile(
-                kcal: _number(_numbers[0].text)!,
-                protein: _number(_numbers[1].text)!,
-                fat: _number(_numbers[2].text)!,
-                carbs: _number(_numbers[3].text)!,
-                fiber: _number(_numbers[4].text) ?? 0,
-              ),
-            )
-          : _selected;
+      final source = _draftSource;
       if (source == null) return;
       final grams = _number(_grams.text)!;
       NutritionEngine.portion(source, grams);
@@ -379,6 +447,7 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                     ),
                 ],
                 const SizedBox(height: 16),
+                _portionPreview(),
                 if (_error != null)
                   Text(
                     _error!,

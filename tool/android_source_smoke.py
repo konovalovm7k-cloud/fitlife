@@ -41,6 +41,9 @@ class SourceSmoke(FeaturesSmoke):
                                ('source-nutrient-1', '2.7'), ('source-nutrient-2', '0.3'),
                                ('source-nutrient-3', '28')]:
                 self.field(key, value)
+            self.scroll_to('Запись изменится только после подтверждения.')
+            self.wait_for('Для вашей порции', '196 ккал', 'Клетчатка не указана в источнике.')
+            self.capture('source-portion-preview-before-confirm')
             self.tap('Подтвердить источник и порцию', scroll=True)
             self.wait_for('СОСТАВ ПРОДУКТОВ', '196 ккал', 'Клетчатка: состав неполный')
             # Keep this fixture separate from the legacy breakfast used by the
