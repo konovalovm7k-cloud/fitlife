@@ -39,3 +39,30 @@ consent, cancelled/stale requests, missing settings, no-match/local read failure
 explicit save retry after route rebuild, offline return and source correction.
 CI's Android Chef smoke makes no provider request; live-owner testing is separate
 and must be reported explicitly. Passing mocks does not establish live accuracy.
+
+## Acceptance on 2026-10-28
+
+230 Flutter tests, analyze, 23 Python harness tests and actionlint passed.
+Release APK 4.6.11+25 retains com.example.fitlife and the existing certificate
+SHA256 190fa5f38b0b27b3c197459b60e34dbaa2964a38682bdb655363e2ca6386b431.
+APK SHA256: 3da5e972d5981143b4d11c287d2b0d9d5020c38c10c8873f4f8de6464430b534.
+The bundled shared metadata was inspected: the expected version and 18 identities.
+Android 15 emulator update without clearing data passed: diary, water, fractional
+goals and encrypted connection save/read/delete. Offline Chef retained input,
+opened shared settings and returned to a real 210 g / 113 kcal local half-portion.
+
+One separately enabled live Android request passed consent -> source review
+(388 kcal) -> explicit save -> cold launch. Visible chicken 120 g / 178 kcal and
+rice 150 g / 176 kcal entries retained CoFID references and the AI-idea origin;
+the manual checker compared visible calories with local source values. The
+temporary secure connection was removed in finally. One additional synthetic
+server request independently verified all four IDs/masses. Neither call tests
+broad recommendation accuracy. No physical phone or iOS acceptance is implied.
+
+Manual tool `tool/android_chef_live.py` requires --allow-live-request and a private
+config, only accepts emulator serials, refuses a nonempty initial connection,
+suppresses private input command errors and never automatically retries.
+Do not add it to CI or capture diagnostics while entering credentials.
+The offline CI tool uses the actual pantry EditText identifier: Android omits
+the visible empty field label from its accessibility text. Regression tests
+cover the observed empty-field representation and disabled-input rejection.
