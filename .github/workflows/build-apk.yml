@@ -117,13 +117,41 @@ jobs:
           FITLIFE_KEY_PASSWORD: ${{ secrets.FITLIFE_KEY_PASSWORD }}
           FITLIFE_KEY_ALIAS: ${{ secrets.FITLIFE_KEY_ALIAS }}
 
+      - name: Record APK checksum
+        run: sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/app-release.apk.sha256
+
       - name: Upload APK
         uses: actions/upload-artifact@v7.0.2
         with:
           name: FitLife-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release.apk.sha256
           if-no-files-found: error
           retention-days: 30
+
+  android-smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download the built release APK
+        uses: actions/download-artifact@v8
+        with:
+          name: FitLife-APK
+          path: build/app/outputs/flutter-apk
+
+      - name: Verify the APK checksum
+        run: sha256sum -c build/app/outputs/flutter-apk/app-release.apk.sha256
 
       - name: Enable Android emulator acceleration
         run: |
