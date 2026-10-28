@@ -69,7 +69,10 @@ class FeaturesSmoke(ReleaseSmoke):
             self.wait_for("157 ккал")
             self.tap_scrolled_exact("Сохранить блюдо")
             self.wait_for("157 ккал на порцию", "Изменить ингредиент")
-            self.tap("Сохранить в мои блюда", scroll=True)
+            self.tap_scrolled_exact("Сохранить в мои блюда", max_height=.96)
+            # SavedMealEditor returns to the home/FAB only after awaiting save.
+            # Do not force-stop the process while its native write is pending.
+            self.wait_for("Добавить еду", "Прогресс")
             self.launch()
             self.tap("Питание")
             self.tap("Мои блюда и повтор еды", scroll=True)

@@ -49,3 +49,17 @@ heading that needs a small bounded swipe. The Chef keyboard guard from #24 is
 also included; it changes only the harness. No app code changed after APK build.
 
 APK SHA256: 813fad7a4c5737c1c99ed3044c51d367d1c283198dd6ffcca99d7c983df8468b.
+
+## Template native write acknowledgement
+
+CI 40740610327 passed release startup but found an empty template library after
+its next cold launch. The script immediately force-stopped after tapping Save,
+without waiting for SavedMealEditor to await repository.save and pop. It now
+uses the exact fully visible enabled Save button and waits for the stable home
+FAB/navigation before force-stop. It does not rely on a transient snack-bar or
+sleep. The delayed-write harness regression fails on the old premature stop and
+passes after acknowledgement (32 combined harness tests). The actual failure
+artifact establishes an empty library; an interrupted pending write is the race
+removed by this change, not a separately observed production storage error.
+App/repository sources and the signed APK are unchanged. A fresh full CI remains
+required before integration; the failed run is not treated as passed.
