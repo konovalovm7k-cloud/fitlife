@@ -27,3 +27,20 @@ through the UI. Every serialized preference entry across four files then
 matched the original, including encrypted settings and the unchanged diary.
 These later changes do not alter app sources or the verified APK. The final full
 CI of the latest head remains required before integration.
+
+## Explicit native fixture meals
+
+Run 40766723585 passed release, library, Today and source cases, then correctly
+showed insufficient confirmed sources in Satiety. Its captured meal contains
+legacy egg/half-egg/chicken plus the sourced rice: after 21:00 the default meal
+is snack, so old test records contaminated the fixture that expected only
+sourced food. The application correctly refused to produce a score.
+
+Legacy egg, repeated half-template and Today chicken now explicitly select
+breakfast; SourceSmoke still selects snack. Empty-day seeding after midnight
+uses the same explicit breakfast. Production meal suggestions and Satiety's
+source requirements do not change. Four night/midnight harness cases pass
+(43 combined tests); the first three failed before the fixture fix. Actual
+Android selection at night was verified and cancelled without a food write;
+every serialized preference entry in four files stayed unchanged.
+The fresh full CI must pass; no failed scenario is skipped or weakened.

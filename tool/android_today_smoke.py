@@ -21,6 +21,7 @@ class TodaySmoke(FeaturesSmoke):
             self.wait_for("Что было на тарелке?")
             self.tap("Куриная грудка")
             self.wait_for("Выбрано: Куриная грудка")
+            self.select_fixture_breakfast()
             self.tap_exact("Добавить")
             self.launch()
             self.tap("Питание")

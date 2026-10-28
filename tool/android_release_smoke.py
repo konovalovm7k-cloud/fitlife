@@ -173,9 +173,16 @@ class ReleaseSmoke:
             self.tap(ADD_FOOD)
             self.tap('Яйцо')
             self.wait_for('Выбрано: Яйцо')
+            self.select_fixture_breakfast()
             self.tap_exact('Добавить')
             self.scroll_to(fixture)
         self.wait_for(fixture, 'Яйцо')
+
+    def select_fixture_breakfast(self):
+        # Keep unconfirmed legacy fixtures out of SourceSmoke's sourced snack,
+        # including when the runner's default meal becomes snack after 21:00.
+        self.tap('Приём пищи')
+        self.tap_exact('Завтрак')
 
     def run(self, apk, expect_auto_connection=False):
         self.adb("install", "-r", str(Path(apk).resolve()))
