@@ -58,6 +58,79 @@ void main() {
   Future<List<dynamic>> stored() async =>
       jsonDecode((await disk.getAll())['flutter.$key']! as String) as List;
 
+  for (final confirm in [false, true]) {
+    testWidgets(
+      'Today targets the actual incomplete entry; ${confirm ? 'confirmation updates it in place' : 'cancel writes nothing'}',
+      (tester) async {
+        original = DiaryItem.fromJson({
+          ...original.toJson(),
+          'food': {...original.food.toJson(), 'fiberKnown': false},
+        });
+        const keep = DiaryItem(
+          id: 'known_first',
+          meal: 'Завтрак',
+          time: '09:12',
+          grams: 100,
+          food: FoodItem(
+            id: 'known_food',
+            name: 'Не менять',
+            kcal: 50,
+            protein: 1,
+            fat: 0,
+            carbs: 10,
+            fiber: 0,
+          ),
+        );
+        await disk.setValue(
+          'String',
+          'flutter.$key',
+          jsonEncode([keep.toJson(), original.toJson()]),
+        );
+        await launch(tester, size: const Size(360, 780));
+        final before = {...await disk.getAll()};
+        await reveal(tester, find.text('Уточнить запись'));
+        await tester.tap(find.text('Уточнить запись'));
+        await tester.pumpAndSettle();
+        final page = tester.widget<FoodSourcePage>(find.byType(FoodSourcePage));
+        expect(page.food!.name, 'Яблоко');
+        expect(page.food!.grams, 150.5);
+        expect(page.allowDelete, isFalse);
+        expect(find.text('В дневнике: Яблоко'), findsOneWidget);
+        expect({...await disk.getAll()}, before);
+        if (!confirm) {
+          await tester.tap(find.byType(BackButton));
+          await tester.pumpAndSettle();
+          expect({...await disk.getAll()}, before);
+        } else {
+          await chooseApple(tester);
+          await tester.tap(find.byKey(const Key('source-confirm')));
+          await tester.pumpAndSettle();
+          expect(find.byType(FoodSourcePage), findsNothing);
+          final records = await stored();
+          expect(records, hasLength(2));
+          expect(records.singleWhere((r) => r['id'] == keep.id), keep.toJson());
+          final changed = records.singleWhere((r) => r['id'] == original.id);
+          expect(changed['food']['id'], original.food.id);
+          expect(
+            changed['food']['nutritionSource']['recordId'],
+            'healthdiet_15983',
+          );
+          expect(changed['meal'], original.meal);
+          expect(changed['time'], original.time);
+          expect(changed['grams'], original.grams);
+          final afterOther = {...await disk.getAll()}..remove('flutter.$key');
+          expect(afterOther, {...before}..remove('flutter.$key'));
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pumpWidget(const FitLifeRoot());
+          await tester.pumpAndSettle();
+          expect(find.text('Уточнить запись'), findsNothing);
+          expect(await stored(), records);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'source correction preserves ID/date/time and other meals; failed native write keeps draft',
     (tester) async {

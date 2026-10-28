@@ -1,6 +1,6 @@
 import 'fitlife_state.dart';
 
-enum TodayAction { logMeal, chooseFood, reviewDiary, savedMeals, catalog }
+enum TodayAction { logMeal, chooseFood, reviewDiary, savedMeals, reviewSource }
 
 enum CompanionMood { welcoming, attentive, encouraging }
 
@@ -48,12 +48,16 @@ class TodayGuidance {
         CompanionMood.encouraging,
       );
     }
-    if (data.diary.any((entry) => !entry.food.hasKnownFiber)) {
-      return const TodayGuidance(
+    final incomplete = data.diary
+        .where((entry) => !entry.food.hasKnownFiber)
+        .firstOrNull;
+    if (incomplete != null) {
+      return TodayGuidance(
         'Уточним состав, когда удобно',
-        'Клетчатка указана не у всех продуктов. Сейчас показана только известная часть.',
-        'Открыть состав продуктов',
-        TodayAction.catalog,
+        'Клетчатка указана не у всех продуктов. Сейчас показана только известная часть. '
+            'Можно уточнить запись «${incomplete.food.name}».',
+        'Уточнить запись',
+        TodayAction.reviewSource,
         CompanionMood.attentive,
       );
     }
