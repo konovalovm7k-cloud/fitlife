@@ -53,8 +53,9 @@ void main() {
       FitLifeState(day: day, diary: [food(fiberKnown: false)]),
       isToday: true,
     );
-    expect(guidance.action, TodayAction.catalog);
+    expect(guidance.action, TodayAction.reviewSource);
     expect(guidance.detail, contains('известная часть'));
+    expect(guidance.detail, contains('Продукт'));
   });
   test('history never receives today-specific eating instructions', () {
     final guidance = TodayGuidance.forDay(
@@ -120,11 +121,11 @@ void main() {
         find.byKey(const Key('today-next-action')),
         180,
       );
-      await tester.ensureVisible(find.text('Открыть состав продуктов'));
+      await tester.ensureVisible(find.text('Уточнить запись'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Открыть состав продуктов'));
+      await tester.tap(find.text('Уточнить запись'));
       await tester.pumpAndSettle();
-      expect(find.text('База продуктов'), findsOneWidget);
+      expect(find.text('В дневнике: Продукт'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

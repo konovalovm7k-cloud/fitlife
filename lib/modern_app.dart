@@ -935,7 +935,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
               TodayAction.logMeal || TodayAction.chooseFood => _addFood,
               TodayAction.reviewDiary => () => setState(() => tab = 1),
               TodayAction.savedMeals => _openSavedMeals,
-              TodayAction.catalog => _openCatalog,
+              TodayAction.reviewSource => _editFirstIncompleteSource,
             },
             icon: const Icon(Icons.arrow_forward_rounded),
             label: Text(next.button),
@@ -1217,6 +1217,15 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Future<void> _editFirstIncompleteSource() async {
+    final item = diary.where((entry) => !entry.food.hasKnownFiber).firstOrNull;
+    if (item == null) {
+      setState(() => tab = 1);
+      return;
+    }
+    await _editDiarySource(item);
   }
 
   Future<void> _editDiarySource(DiaryItem item) async {
