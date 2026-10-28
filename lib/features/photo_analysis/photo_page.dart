@@ -276,7 +276,7 @@ class _PhotoPageState extends State<PhotoPage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Сфотографируйте блюдо сверху. FitLife предложит состав и порции, а вы уточните детали.',
+              'Сфотографируйте блюдо сверху. FitLife предложит продукты и порции, а вы выберете источник состава.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -339,7 +339,15 @@ class _PhotoPageState extends State<PhotoPage> {
           key: const Key('photo-analyze'),
           onPressed: _busy ? null : _analyze,
           icon: const Icon(Icons.auto_awesome_outlined),
-          label: const Text('Оценить калорийность'),
+          label: const Text('Распознать продукты'),
+        ),
+      if (_photo != null)
+        const Padding(
+          padding: EdgeInsets.only(top: 8, bottom: 8),
+          child: Text(
+            'Калории и нутриенты рассчитаем по выбранному источнику.',
+            style: TextStyle(color: muted),
+          ),
         ),
       TextButton.icon(
         onPressed: _busy ? null : _settings,
