@@ -10,7 +10,13 @@ class ChefSmoke(SourceSmoke):
         self.launch()
         self.tap_scrolled_exact('Открыть идеи блюд', max_height=.9)
         self.tap_scrolled_exact('AI Chef: подобрать из моих продуктов', max_height=.9)
-        self.wait_for('Что есть под рукой?', 'Список продуктов')
+        # Flutter's Android semantics expose the empty pantry EditText by its
+        # identifier, but do not expose the visible label as separate text.
+        nodes = self.wait_for('Что есть под рукой?')
+        if not any(n.get('resource-id', '').endswith('chef-pantry')
+                   and n.get('class') == 'android.widget.EditText'
+                   and n.get('enabled') == 'true' for n in nodes):
+            raise AssertionError('Chef pantry input is not ready')
 
     def run_chef(self):
         try:
