@@ -1746,39 +1746,48 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
               ),
             ),
           const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _grams,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Граммы',
-                    errorText: _error,
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final grams = TextField(
+                controller: _grams,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _meal,
-                  isExpanded: true,
-                  items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: item,
-                          child: Text(item, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _meal = value ?? _meal),
-                  decoration: const InputDecoration(labelText: 'Приём пищи'),
+                decoration: InputDecoration(
+                  labelText: 'Граммы',
+                  errorText: _error,
                 ),
-              ),
-            ],
+              );
+              final meal = DropdownButtonFormField<String>(
+                initialValue: _meal,
+                isExpanded: true,
+                items: const ['Завтрак', 'Обед', 'Ужин', 'Перекус']
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item, overflow: TextOverflow.ellipsis),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _meal = value ?? _meal),
+                decoration: const InputDecoration(labelText: 'Приём пищи'),
+              );
+              if (constraints.maxWidth < 400 ||
+                  MediaQuery.textScalerOf(context).scale(16) > 24) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [grams, const SizedBox(height: 12), meal],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: grams),
+                  const SizedBox(width: 10),
+                  Expanded(child: meal),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
