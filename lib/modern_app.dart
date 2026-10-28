@@ -1167,6 +1167,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
       builder: (_) => _FoodEntrySheet(
         foods: foods,
         favorites: favorites,
+        recent: recent,
         preselected: preselected,
         initialMeal: _suggestedMeal(),
         onFavorite: (food, selected) =>
@@ -1485,10 +1486,13 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 }
 
+enum _FoodListFilter { all, recent, favorites }
+
 class _FoodEntrySheet extends StatefulWidget {
   const _FoodEntrySheet({
     required this.foods,
     required this.favorites,
+    required this.recent,
     required this.initialMeal,
     required this.onFavorite,
     required this.onAdd,
@@ -1497,6 +1501,7 @@ class _FoodEntrySheet extends StatefulWidget {
 
   final List<FoodItem> foods;
   final List<String> favorites;
+  final List<String> recent;
   final FoodItem? preselected;
   final String initialMeal;
   final Future<List<String>> Function(FoodItem, bool) onFavorite;
@@ -1511,6 +1516,7 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
   late FoodItem? _selected = widget.preselected;
   late String _meal = widget.initialMeal;
   String _query = '';
+  _FoodListFilter _filter = _FoodListFilter.all;
   String? _error;
   bool _saving = false;
   late List<String> _favorites = [...widget.favorites];
@@ -1570,7 +1576,18 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = widget.foods
+    final byId = <String, FoodItem>{};
+    for (final food in widget.foods) {
+      byId.putIfAbsent(food.id, () => food);
+    }
+    final available = switch (_filter) {
+      _FoodListFilter.all => widget.foods,
+      _FoodListFilter.recent =>
+        widget.recent.toSet().map((id) => byId[id]).nonNulls.toList(),
+      _FoodListFilter.favorites =>
+        widget.foods.where((food) => _favorites.contains(food.id)).toList(),
+    };
+    final filtered = available
         .where(
           (food) => food.name
               .toLowerCase()
@@ -1622,6 +1639,23 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
             onChanged: (value) => setState(() => _query = value),
           ),
           const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final filter in _FoodListFilter.values)
+                ChoiceChip(
+                  key: Key('food-filter-${filter.name}'),
+                  label: Text(switch (filter) {
+                    _FoodListFilter.all => 'Все',
+                    _FoodListFilter.recent => 'Последние',
+                    _FoodListFilter.favorites => 'Избранное',
+                  }),
+                  selected: _filter == filter,
+                  onSelected: (_) => setState(() => _filter = filter),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
           if (_favoriteError != null)
             Text(
               _favoriteError!,
@@ -1633,9 +1667,18 @@ class _FoodEntrySheetState extends State<_FoodEntrySheet> {
               230.0,
             ),
             child: filtered.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'Ничего не найдено. Можно создать свой продукт.',
+                      _query.trim().isNotEmpty || available.isNotEmpty
+                          ? 'Ничего не найдено. Можно создать свой продукт.'
+                          : switch (_filter) {
+                              _FoodListFilter.favorites =>
+                                'В избранном пока нет продуктов. Нажмите звёздочку в общем списке.',
+                              _FoodListFilter.recent =>
+                                'Здесь появятся продукты после записи еды. Пока выберите из общего списка.',
+                              _FoodListFilter.all =>
+                                'Ничего не найдено. Можно создать свой продукт.',
+                            },
                       textAlign: TextAlign.center,
                     ),
                   )
