@@ -117,6 +117,9 @@ jobs:
           FITLIFE_KEY_PASSWORD: ${{ secrets.FITLIFE_KEY_PASSWORD }}
           FITLIFE_KEY_ALIAS: ${{ secrets.FITLIFE_KEY_ALIAS }}
 
+      - name: Verify release identity and signature
+        run: python3 tool/verify_android_release.py build/app/outputs/flutter-apk/app-release.apk
+
       - name: Record APK checksum
         run: sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/app-release.apk.sha256
 
