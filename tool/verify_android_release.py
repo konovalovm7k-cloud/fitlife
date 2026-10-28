@@ -34,8 +34,23 @@ def verify_identity(badging, certificates, expected_version):
         raise ValueError('APK version differs from pubspec')
     if re.search(r'^application-debuggable(?:\s|$)', badging, re.M):
         raise ValueError('APK is debuggable')
-    digests = re.findall(r'^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$', certificates, re.M)
-    if len(digests) != 1 or digests[0].replace(':', '').lower() != CERTIFICATE_SHA256:
+    # build-tools 36 reports "Signer #1", while the observed Linux 37 output
+    # identifies the signature scheme as "V2 Signer". Check every certificate
+    # record, not just the first matching line or a substring containing our key.
+    certificate_lines = [line.strip() for line in certificates.splitlines()
+                         if 'certificate SHA-256 digest:' in line]
+    records = []
+    for line in certificate_lines:
+        match = re.fullmatch(
+            r'(?:(Signer #([0-9]+)) |(V[1-4](?:\.[0-9]+)? Signer(?: #([0-9]+))?): )'
+            r'certificate SHA-256 digest: ([0-9a-fA-F:]+)', line)
+        if not match or match[2] not in (None, '1') or match[4] not in (None, '1'):
+            records = []
+            break
+        role = 'legacy' if match[1] else match[3].split()[0]
+        records.append((role, match[5].replace(':', '').lower()))
+    if (not records or len({role for role, _ in records}) != len(records)
+            or any(digest != CERTIFICATE_SHA256 for _, digest in records)):
         # These are public certificate fingerprints, never keystore contents or
         # passwords. Preserve evidence if a build-tools format or signer differs.
         reported = [line[:256] for line in certificates.splitlines()
