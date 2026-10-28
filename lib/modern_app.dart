@@ -1464,11 +1464,14 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   Future<void> _saveMealTemplate(String meal, List<DiaryItem> items) async {
+    // One ID per opened draft: route rebuilds must not turn a write retry into
+    // a second template while an earlier native write is still completing.
+    final draft = SavedMeal(id: newDiaryEntryId(), name: meal, items: items);
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => SavedMealEditor(
           repository: SavedMealsRepository(_repository),
-          initial: SavedMeal(id: newDiaryEntryId(), name: meal, items: items),
+          initial: draft,
         ),
       ),
     );
