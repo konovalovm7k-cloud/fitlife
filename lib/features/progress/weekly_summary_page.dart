@@ -19,10 +19,22 @@ class WeeklySummaryPage extends StatefulWidget {
 
 class _WeeklySummaryPageState extends State<WeeklySummaryPage> {
   late Future<WeeklySummary> _summary = _load();
-  Future<WeeklySummary> _load() => WeeklySummary.load(
-    widget.end,
-    preferencesLoader: widget.preferencesLoader,
-  );
+  Future<WeeklySummary> _load() {
+    final future = Future<WeeklySummary>.sync(
+      () => WeeklySummary.load(
+        widget.end,
+        preferencesLoader: widget.preferencesLoader,
+      ),
+    );
+    future.ignore();
+    return future;
+  }
+
+  void _retry() {
+    setState(() {
+      _summary = _load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -42,7 +54,7 @@ class _WeeklySummaryPageState extends State<WeeklySummaryPage> {
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: () => setState(() => _summary = _load()),
+                    onPressed: _retry,
                     child: const Text('Повторить'),
                   ),
                 ],

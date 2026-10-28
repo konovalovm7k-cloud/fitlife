@@ -17,8 +17,19 @@ class WeightHistoryPage extends StatefulWidget {
 class _WeightHistoryPageState extends State<WeightHistoryPage> {
   late Future<WeightHistory> _data = _load();
   int _period = 30;
-  Future<WeightHistory> _load() =>
-      widget.repository.load().timeout(const Duration(seconds: 15));
+  Future<WeightHistory> _load() {
+    final future = Future<WeightHistory>.sync(
+      widget.repository.load,
+    ).timeout(const Duration(seconds: 15));
+    future.ignore();
+    return future;
+  }
+
+  void _retry() {
+    setState(() {
+      _data = _load();
+    });
+  }
 
   Future<void> _edit(WeightHistory history, {WeightEntry? entry}) async {
     final now = DateUtils.dateOnly(DateTime.now());
@@ -56,7 +67,11 @@ class _WeightHistoryPageState extends State<WeightHistoryPage> {
               : await widget.repository.save(
                   WeightEntry(date, result.values.single),
                 );
-          if (mounted) setState(() => _data = Future.value(updated));
+          if (mounted) {
+            setState(() {
+              _data = Future.value(updated);
+            });
+          }
         },
       ),
     );
@@ -74,10 +89,7 @@ class _WeightHistoryPageState extends State<WeightHistoryPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text('Не удалось прочитать измерения.'),
-                TextButton(
-                  onPressed: () => setState(() => _data = _load()),
-                  child: const Text('Повторить'),
-                ),
+                TextButton(onPressed: _retry, child: const Text('Повторить')),
               ],
             ),
           );

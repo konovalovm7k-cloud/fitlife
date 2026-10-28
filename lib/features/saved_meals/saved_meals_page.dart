@@ -25,12 +25,21 @@ class _SavedMealsPageState extends State<SavedMealsPage> {
   bool _previous = false;
   String _query = '';
   late Future<({List<SavedMeal> meals, bool recovered})> _data = _load();
-  Future<({List<SavedMeal> meals, bool recovered})> _load() =>
-      (_previous
-              ? widget.repository.previousDay(widget.day)
-              : widget.repository.load())
-          .timeout(const Duration(seconds: 15));
-  void _reload() => setState(() => _data = _load());
+  Future<({List<SavedMeal> meals, bool recovered})> _load() {
+    final future = Future<({List<SavedMeal> meals, bool recovered})>.sync(
+      () => _previous
+          ? widget.repository.previousDay(widget.day)
+          : widget.repository.load(),
+    ).timeout(const Duration(seconds: 15));
+    future.ignore();
+    return future;
+  }
+
+  void _reload() {
+    setState(() {
+      _data = _load();
+    });
+  }
 
   Future<void> _add(SavedMeal recipe) async {
     final added = await Navigator.push<bool>(
