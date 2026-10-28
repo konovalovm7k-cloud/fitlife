@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/models/food.dart';
 import '../core/nutrition/nutrition_calculator.dart';
 import '../data/repositories/fitlife_storage.dart';
+import 'nutrition_goal_format.dart';
 
 const bg = Color(0xFFF7F9FB);
 const blue = Color(0xFF3F6F9F);
@@ -71,13 +72,21 @@ class _FitLifeShellState extends State<FitLifeShell> {
   double get carbs => todayMeals.fold(0, (sum, e) => sum + e.carbs);
   double get fiber => todayMeals.fold(0, (sum, e) => sum + e.fiber);
 
-  NutritionGoals get goals => const NutritionCalculator().calculate(
+  NutritionGoals? get _calculatedGoals {
+    try {
+      return const NutritionCalculator().calculate(
         weight: weight,
         height: height,
         age: age,
         sex: sex,
         activity: activity,
       );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  NutritionGoals get goals => _calculatedGoals ?? const NutritionGoals();
 
   double get weightProgress {
     final total = startWeight - goalWeight;
@@ -361,7 +370,7 @@ class _FitLifeShellState extends State<FitLifeShell> {
     );
   }
 
-  Widget _macro(String label, double value, int target) {
+  Widget _macro(String label, double value, double target) {
     final progress = target <= 0 ? 0.0 : (value / target).clamp(0.0, 1.0);
     return Expanded(
       child: Padding(
@@ -377,7 +386,7 @@ class _FitLifeShellState extends State<FitLifeShell> {
               backgroundColor: blueLight,
             ),
             Text(
-              '${value.round()} / $target г',
+              '${value.round()} / ${formatNutritionGoal(target)} г',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],
@@ -895,10 +904,10 @@ class _FitLifeShellState extends State<FitLifeShell> {
                 style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 14),
-              _statRow('Калории', '$averageCalories / ${goals.calories} ккал'),
-              _statRow('Белки', '${protein.round()} / ${goals.protein} г'),
-              _statRow('Жиры', '${fat.round()} / ${goals.fat} г'),
-              _statRow('Углеводы', '${carbs.round()} / ${goals.carbs} г'),
+              _statRow('Калории', '$averageCalories / ${formatNutritionGoal(goals.calories)} ккал'),
+              _statRow('Белки', '${protein.round()} / ${formatNutritionGoal(goals.protein)} г'),
+              _statRow('Жиры', '${fat.round()} / ${formatNutritionGoal(goals.fat)} г'),
+              _statRow('Углеводы', '${carbs.round()} / ${formatNutritionGoal(goals.carbs)} г'),
               _statRow('Клетчатка', '${fiber.toStringAsFixed(1)} / 30 г'),
               _statRow('Вода', '$water мл'),
             ],
@@ -969,6 +978,8 @@ class _FitLifeShellState extends State<FitLifeShell> {
               _profileRow('Стартовый вес', '${startWeight.toStringAsFixed(1)} кг'),
               _profileRow('Цель', '${goalWeight.toStringAsFixed(1)} кг'),
               _profileRow('Пол', sex),
+              if (_calculatedGoals == null)
+                const Text('Проверь данные профиля: показаны базовые цели.'),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: _editProfile,
@@ -988,10 +999,10 @@ class _FitLifeShellState extends State<FitLifeShell> {
                 style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 12),
-              Text('${goals.calories} ккал'),
-              Text('Белки: ${goals.protein} г'),
-              Text('Жиры: ${goals.fat} г'),
-              Text('Углеводы: ${goals.carbs} г'),
+              Text('${formatNutritionGoal(goals.calories)} ккал'),
+              Text('Белки: ${formatNutritionGoal(goals.protein)} г'),
+              Text('Жиры: ${formatNutritionGoal(goals.fat)} г'),
+              Text('Углеводы: ${formatNutritionGoal(goals.carbs)} г'),
             ],
           ),
         ),
@@ -1033,8 +1044,9 @@ class _FitLifeShellState extends State<FitLifeShell> {
     final startController = TextEditingController(text: startWeight.toStringAsFixed(1));
     final goalController = TextEditingController(text: goalWeight.toStringAsFixed(1));
     String selectedSex = sex;
+    String? profileError;
 
-    await showDialog<void>(
+    final route = DialogRoute<void>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -1070,6 +1082,8 @@ class _FitLifeShellState extends State<FitLifeShell> {
                       decoration: const InputDecoration(labelText: 'Целевой вес, кг'),
                     ),
                     const SizedBox(height: 8),
+                    if (profileError != null)
+                      Text(profileError!, style: const TextStyle(color: Colors.red)),
                     DropdownButtonFormField<String>(
                       initialValue: selectedSex,
                       decoration: const InputDecoration(labelText: 'Пол'),
@@ -1108,6 +1122,21 @@ class _FitLifeShellState extends State<FitLifeShell> {
                         parsedGoal <= 0) {
                       return;
                     }
+                    try {
+                      const NutritionCalculator().calculate(
+                        weight: parsedWeight,
+                        height: parsedHeight,
+                        age: parsedAge,
+                        sex: selectedSex,
+                        activity: activity,
+                      );
+                      if (!parsedStart.isFinite || !parsedGoal.isFinite) {
+                        throw const FormatException('Укажи конечный вес в килограммах.');
+                      }
+                    } on FormatException catch (error) {
+                      dialogSetState(() => profileError = error.message);
+                      return;
+                    }
                     change(() {
                       age = parsedAge;
                       height = parsedHeight;
@@ -1127,6 +1156,9 @@ class _FitLifeShellState extends State<FitLifeShell> {
       },
     );
 
+    await Navigator.of(context).push(route);
+    // Release controllers after the reverse transition removes the dialog.
+    await route.completed;
     ageController.dispose();
     heightController.dispose();
     weightController.dispose();
@@ -1299,9 +1331,9 @@ class _WeightChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final left = 42.0;
+    const left = 42.0;
     final right = size.width - 12;
-    final top = 18.0;
+    const top = 18.0;
     final bottom = size.height - 28;
     final chartWidth = right - left;
     final chartHeight = bottom - top;

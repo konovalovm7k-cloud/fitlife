@@ -39,12 +39,25 @@ class NutritionTargets {
   static String _normalize(String value) =>
       value.trim().toLowerCase().replaceAll('ё', 'е');
 
-  static double? _resolve(Map<String, double> targets, String key) {
+  static double? _resolve(
+    Map<String, double> targets,
+    String key,
+    Set<String> micrograms,
+  ) {
     final normalized = _normalize(key);
+    double inLabelUnits(String reference, double value) {
+      final isMicrograms = micrograms.contains(reference);
+      if (normalized.endsWith('(мкг)') && !isMicrograms) return value * 1000;
+      if (normalized.endsWith('(мг)') && isMicrograms) return value / 1000;
+      return value;
+    }
+
     final direct = targets.entries.where(
       (entry) => _normalize(entry.key) == normalized,
     );
-    if (direct.isNotEmpty) return direct.first.value;
+    if (direct.isNotEmpty) {
+      return inLabelUnits(direct.first.key, direct.first.value);
+    }
 
     // Database labels contain units and, for minerals, Russian names:
     // e.g. "C (мг)", "B12 (мкг)", "Калий K (мг)".
@@ -53,7 +66,7 @@ class NutritionTargets {
       if (normalized == token ||
           normalized.startsWith('$token ') ||
           normalized.startsWith('$token(')) {
-        return entry.value;
+        return inLabelUnits(entry.key, entry.value);
       }
     }
 
@@ -80,14 +93,17 @@ class NutritionTargets {
 
     for (final alias in aliases.entries) {
       if (normalized.startsWith(alias.key)) {
-        return targets[alias.value];
+        final target = targets[alias.value];
+        return target == null ? null : inLabelUnits(alias.value, target);
       }
     }
     return null;
   }
 
-  static double? vitamin(String key) => _resolve(vitamins, key);
-  static double? mineral(String key) => _resolve(minerals, key);
+  static double? vitamin(String key) =>
+      _resolve(vitamins, key, const {'A', 'B9', 'B12', 'D', 'K', 'H'});
+  static double? mineral(String key) =>
+      _resolve(minerals, key, const {'I', 'Se', 'Cr', 'Mo'});
   static double? forVitamin(String key) => vitamin(key);
   static double? forMineral(String key) => mineral(key);
 

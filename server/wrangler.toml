@@ -1,0 +1,22 @@
+name = "fitlife-photo"
+main = "src/entry.mjs"
+compatibility_date = "2026-10-20"
+workers_dev = true
+
+[observability]
+enabled = false
+
+[vars]
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+USER_DAILY_LIMIT = "5"
+GLOBAL_DAILY_LIMIT = "20"
+GLOBAL_MINUTE_LIMIT = "4"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fitlife-photo"
+database_id = "516ce41c-c675-4e75-91e2-f5e4398a230e"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 3 * * *"]

@@ -7,11 +7,14 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('FitLife launches and navigation responds to taps', (tester) async {
+  testWidgets('FitLife launches and navigation responds to taps', (
+    tester,
+  ) async {
     await tester.pumpWidget(const FitLifeRoot());
     await tester.pumpAndSettle();
 
     expect(find.text('Сегодня'), findsWidgets);
+    await tester.scrollUntilVisible(find.text('Твой помощник'), 200);
     expect(find.text('Твой помощник'), findsOneWidget);
 
     await tester.tap(find.text('Питание').last);

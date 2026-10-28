@@ -36,6 +36,13 @@ class NutritionProfile {
   });
 
   NutritionProfile portion(double grams) {
+    if (!grams.isFinite || grams < 0) {
+      throw ArgumentError.value(
+        grams,
+        'grams',
+        'Must be finite and non-negative',
+      );
+    }
     final factor = grams / 100;
     Map<String, double> scaleMap(Map<String, double> source) =>
         source.map((key, value) => MapEntry(key, value * factor));
@@ -89,41 +96,48 @@ class NutritionProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'kcal': kcal,
-        'protein': protein,
-        'fat': fat,
-        'carbs': carbs,
-        'fiber': fiber,
-        'water': water,
-        'ash': ash,
-        'vitamins': vitamins,
-        'minerals': minerals,
-        'aminoAcids': aminoAcids,
-        'fattyAcids': fattyAcids,
-        'omega3': omega3,
-        'omega6': omega6,
-        'cholesterol': cholesterol,
-      };
+    'kcal': kcal,
+    'protein': protein,
+    'fat': fat,
+    'carbs': carbs,
+    'fiber': fiber,
+    'water': water,
+    'ash': ash,
+    'vitamins': vitamins,
+    'minerals': minerals,
+    'aminoAcids': aminoAcids,
+    'fattyAcids': fattyAcids,
+    'omega3': omega3,
+    'omega6': omega6,
+    'cholesterol': cholesterol,
+  };
 
   factory NutritionProfile.fromJson(Map<String, dynamic> json) {
-    Map<String, double> readMap(String key) {
-      final value = json[key];
-      if (value is! Map) return const {};
-      return value.map(
-        (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
-      );
+    double number(dynamic value) {
+      if (value is! num || !value.isFinite || value < 0) {
+        throw const FormatException('Invalid nutrient value');
+      }
+      return value.toDouble();
     }
 
-    double? readNullable(String key) => (json[key] as num?)?.toDouble();
+    Map<String, double> readMap(String key) {
+      final value = json[key];
+      if (value == null) return const {};
+      if (value is! Map) throw const FormatException('Invalid nutrient map');
+      return value.map((key, value) => MapEntry(key.toString(), number(value)));
+    }
+
+    double? readNullable(String key) =>
+        json[key] == null ? null : number(json[key]);
 
     return NutritionProfile(
-      kcal: (json['kcal'] as num?)?.toDouble() ?? 0,
-      protein: (json['protein'] as num?)?.toDouble() ?? 0,
-      fat: (json['fat'] as num?)?.toDouble() ?? 0,
-      carbs: (json['carbs'] as num?)?.toDouble() ?? 0,
-      fiber: (json['fiber'] as num?)?.toDouble() ?? 0,
-      water: (json['water'] as num?)?.toDouble() ?? 0,
-      ash: (json['ash'] as num?)?.toDouble() ?? 0,
+      kcal: number(json['kcal'] ?? 0),
+      protein: number(json['protein'] ?? 0),
+      fat: number(json['fat'] ?? 0),
+      carbs: number(json['carbs'] ?? 0),
+      fiber: number(json['fiber'] ?? 0),
+      water: number(json['water'] ?? 0),
+      ash: number(json['ash'] ?? 0),
       vitamins: readMap('vitamins'),
       minerals: readMap('minerals'),
       aminoAcids: readMap('aminoAcids'),
