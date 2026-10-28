@@ -180,6 +180,7 @@ jobs:
             python3 tool/android_catalogue_smoke.py
             python3 tool/android_meal_ideas_smoke.py
             python3 tool/android_chef_smoke.py
+            python3 tool/android_photo_smoke.py
 
       - name: Upload release smoke-test diagnostics
         if: always()
