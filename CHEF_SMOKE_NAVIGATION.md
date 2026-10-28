@@ -44,3 +44,12 @@ Android's `mInputShown` state. Send Back only if the IME is actually shown, then
 perform the existing exact visible-button check. With a hidden IME, no Back is
 sent, so the Chef route cannot accidentally be popped. Two additional harness
 tests cover both cases (26 total). No app-source or viewport changes are needed.
+
+The photo release #23 subsequently passed all twelve native cases in run
+40734280114 and was merged into main 0d1cc79 with an identical tested tree.
+This branch now includes that main, so the combined harness has 30 tests.
+Local native acceptance on the preserved 4.6.15 AVD deliberately restored a
+visible pantry keyboard, verified it was hidden with Chef still open, then
+completed the real 210 g / 113 kcal fallback without an AI request. The pantry
+screen is unchanged from the released main sources. The follow-up CI remains
+required; success of #23 does not certify this additional harness change.
