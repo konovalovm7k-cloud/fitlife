@@ -3,6 +3,7 @@ import '../../app/fitlife_theme.dart';
 import '../../core/models/nutrition_profile.dart';
 import '../../core/nutrition/food_catalog_import.dart';
 import '../../core/nutrition/nutrition_database.dart';
+import '../../core/nutrition/nutrition_day.dart';
 import '../../core/nutrition/nutrition_engine.dart';
 import 'photo_models.dart';
 
@@ -189,10 +190,7 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
 
   @override
   Widget build(BuildContext context) {
-    final query = _query.text.toLowerCase().trim();
-    final matches = _records
-        .where((r) => r.name.toLowerCase().contains(query))
-        .toList();
+    final matches = NutritionCatalog(records: _records).search(_query.text);
     const labels = [
       'Ккал на 100 г',
       'Белки на 100 г',
@@ -312,13 +310,16 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                     ),
                 ] else ...[
                   if (_notice != null) Text(_notice!),
-                  TextField(
-                    controller: _query,
-                    decoration: const InputDecoration(
-                      labelText: 'Поиск в каталоге',
-                      suffixIcon: Icon(Icons.search),
+                  Semantics(
+                    identifier: 'source-search',
+                    child: TextField(
+                      controller: _query,
+                      decoration: const InputDecoration(
+                        labelText: 'Поиск в каталоге',
+                        suffixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (_) => setState(() {}),
                     ),
-                    onChanged: (_) => setState(() {}),
                   ),
                   if (_selected != null)
                     Card(
@@ -348,6 +349,12 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                       child: Text(
                         'Совпадений нет. Измените запрос или введите состав с этикетки.',
                       ),
+                    ),
+                  if (matches.isEmpty && _query.text.trim().isNotEmpty)
+                    TextButton(
+                      key: const Key('source-show-all'),
+                      onPressed: () => setState(_query.clear),
+                      child: const Text('Показать весь каталог'),
                     ),
                   for (final record in matches.take(30))
                     ListTile(

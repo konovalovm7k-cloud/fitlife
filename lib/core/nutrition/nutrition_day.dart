@@ -38,12 +38,17 @@ class NutritionCatalog {
   final List<NutritionFoodRecord> records;
 
   List<NutritionFoodRecord> search(String query) {
-    final q = query.trim().toLowerCase().replaceAll('ё', 'е');
+    String normalize(String value) => value.toLowerCase().replaceAll('ё', 'е');
+    final q = normalize(query).trim();
     if (q.isEmpty) return records;
+    final words = q.split(RegExp(r'[\s,;/()]+')).where((w) => w.isNotEmpty);
     return records
-        .where(
-          (food) => food.name.toLowerCase().replaceAll('ё', 'е').contains(q),
-        )
+        .where((food) {
+          final text = normalize('${food.name} ${food.source} ${food.id}');
+          // Require every word: never discard an unmatched cooking state or
+          // silently select a source on the user's behalf.
+          return words.every(text.contains);
+        })
         .toList(growable: false);
   }
 }

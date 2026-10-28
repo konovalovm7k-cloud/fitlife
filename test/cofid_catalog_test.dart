@@ -7,10 +7,12 @@ import 'package:fitlife/core/nutrition/nutrition_day.dart';
 import 'package:fitlife/core/nutrition/nutrition_engine.dart';
 import 'package:fitlife/data/repositories/local_fitlife_repository.dart';
 import 'package:fitlife/features/photo_analysis/food_source_page.dart';
+import 'package:fitlife/features/photo_analysis/photo_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'support/source_flow.dart';
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +28,80 @@ void main() {
   });
   final rice = records.singleWhere((r) => r.id.endsWith('11-858'));
   final yogurt = records.singleWhere((r) => r.id.endsWith('12-379'));
+  testWidgets('source search finds reordered words without auto selecting', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: FoodSourcePage(
+          food: PhotoFood(name: 'рис вареный', grams: 150.5, confidence: 'low'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, rice.name), findsOneWidget);
+    expect(find.byType(ListTile), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('source-confirm')))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.widgetWithText(ListTile, rice.name));
+    await tester.pumpAndSettle();
+    expect(find.text('Выбрано: ${rice.name}'), findsOneWidget);
+    await reveal(tester, find.byKey(const Key('source-confirm')));
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('source-confirm')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+  testWidgets(
+    'no-match escape opens full catalogue without selecting or saving',
+    (tester) async {
+      var saves = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FoodSourcePage(
+            food: const PhotoFood(
+              name: 'Несуществующее блюдо',
+              grams: 150.5,
+              confidence: 'low',
+            ),
+            onSave: (_) async {
+              saves++;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ListTile), findsNothing);
+      final all = find.byKey(const Key('source-show-all'));
+      await tester.ensureVisible(all);
+      await tester.tap(all);
+      await tester.pumpAndSettle();
+      expect(find.byType(ListTile), findsWidgets);
+      expect(
+        tester
+            .widget<TextField>(
+              find.widgetWithText(TextField, 'Поиск в каталоге'),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+      await reveal(tester, find.byKey(const Key('source-confirm')));
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('source-confirm')))
+            .onPressed,
+        isNull,
+      );
+      expect(saves, 0);
+    },
+  );
   testWidgets(
     'selected catalogue product narrows the list and query stays editable',
     (tester) async {

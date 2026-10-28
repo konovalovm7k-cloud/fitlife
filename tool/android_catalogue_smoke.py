@@ -15,7 +15,16 @@ class CatalogueSmoke(DiarySourceSmoke):
             self.tap('Ввести состав с этикетки', scroll=True)
             self.field('source-grams', '150.5')
             self.tap('Из каталога')
-            self.choose_catalogue(name)
+            self.field('source-search', 'no_match_smoke')
+            self.wait_for('Совпадений нет.', 'Показать весь каталог')
+            self.capture('catalogue-search-empty')
+            self.tap_scrolled_exact('Показать весь каталог', max_height=.96)
+            # Original English source words in a different order; the display
+            # name stays Russian and selecting a source remains explicit.
+            self.field('source-search', 'flesh%sonly%sbananas')
+            self.wait_for(name)
+            self.capture('catalogue-source-search')
+            self.tap_scrolled_exact(name, max_height=.9)
             # The final button is fully above Android's navigation area, but
             # below 90% when the enlarged catalogue reaches its scroll extent.
             self.tap_scrolled_exact('Подтвердить источник и порцию', max_height=.96)
@@ -37,7 +46,7 @@ class CatalogueSmoke(DiarySourceSmoke):
             self.scroll_to(source_url)
             self.wait_for(source_url, '81.0 ккал на 100 г')
             self.capture('catalogue-source-restored')
-            print('PASS: offline CoFID banana, 150.5 g / 122 kcal, known fibre and exact source survive cold launch')
+            print('PASS: no-match catalogue escape, reordered English source search, explicit CoFID banana selection, 150.5 g / 122 kcal, known fibre and exact source survive cold launch')
         except Exception:
             self.capture('catalogue-failure')
             raise
