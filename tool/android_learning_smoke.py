@@ -1,10 +1,28 @@
 """Check offline lessons, actual portion calculation and persistent progress."""
 import argparse
 import os
+import re
 from android_features_smoke import FeaturesSmoke
 
 
 class LearningSmoke(FeaturesSmoke):
+    def open_today_step(self, topic, count):
+        self.launch()
+        nodes = self.scroll_to('Один небольшой шаг')
+        # Android merges the card's non-interactive text into one node. Its
+        # first line identifies the step; enabled actions remain separate nodes.
+        heading = next(n for n in nodes
+                       if self.label(n).strip().splitlines()[0:1] == ['Один небольшой шаг'])
+        width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
+        bounds = list(map(int, re.findall(r'\d+', heading.get('bounds', ''))))
+        assert len(bounds) == 4, 'Learning step heading has no bounds'
+        # Bring a low heading into view before waiting for the asynchronous
+        # local marks. A small slow swipe cannot carry this heading past the top.
+        if bounds[1] > height * .6:
+            self.adb('shell', 'input', 'swipe', str(width // 2), str(height * 3 // 4),
+                     str(width // 2), str(height * 11 // 20), '450')
+        self.wait_for(topic, f'Понятно: {count} из 3')
+
     def run_learning(self):
         try:
             self.launch()
@@ -34,7 +52,25 @@ class LearningSmoke(FeaturesSmoke):
             self.tap_scrolled_exact('Открыть дневник', max_height=.9)
             self.wait_for('Добавить еду', 'Питание')
             self.capture('learning-diary-action')
-            print('PASS: offline FDA portion example, persistent lesson progress and actual lesson-to-diary navigation')
+            self.open_today_step('Зачем нужны нутриенты', 1)
+            self.tap_scrolled_exact('Открыть задание', max_height=.9)
+            self.wait_for('Зачем нужны нутриенты', 'Попробуйте, если удобно')
+            self.tap_scrolled_exact('Понятно, отметить', max_height=.9)
+            self.wait_for('Отменить отметку')
+            self.adb('shell', 'input', 'keyevent', '4')
+            self.open_today_step('Что известно о составе', 2)
+            self.capture('learning-next-task-relaunch')
+            self.tap_scrolled_exact('Открыть короткие уроки', max_height=.9)
+            self.wait_for('Понятно: 2 из 3')
+            self.tap('Зачем нужны нутриенты')
+            self.tap_scrolled_exact('Отменить отметку', max_height=.9)
+            self.wait_for('Понятно, отметить')
+            self.adb('shell', 'input', 'keyevent', '4')
+            self.wait_for('Понятно: 1 из 3')
+            self.adb('shell', 'input', 'keyevent', '4')
+            self.open_today_step('Зачем нужны нутриенты', 1)
+            self.capture('learning-task-undo-relaunch')
+            print('PASS: offline FDA portion, persistent progress, lesson-to-diary navigation, direct Today task, next topic after cold launch and undo; no AI request')
         except Exception:
             self.capture('learning-failure')
             raise

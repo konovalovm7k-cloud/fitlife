@@ -6,6 +6,13 @@ from android_release_smoke import SAVE_CONNECTION
 
 
 class ChefSmoke(SourceSmoke):
+    def hide_pantry_keyboard(self):
+        # Returning from shared settings can restore focus and the pantry IME.
+        # Full-screen swipes otherwise land on the keyboard instead of the list.
+        # Never send Back with a hidden IME: that would pop the Chef route.
+        if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
+            self.adb('shell', 'input', 'keyevent', '4')
+
     def open_chef(self):
         self.launch()
         self.tap_scrolled_exact('Открыть идеи блюд', max_height=.9)
@@ -35,6 +42,7 @@ class ChefSmoke(SourceSmoke):
             self.capture('chef-shared-settings')
             self.adb('shell', 'input', 'keyevent', '4')
             self.wait_for('ready rice, cucumber')
+            self.hide_pantry_keyboard()
             self.tap_scrolled_exact('Вернуться к локальным идеям', max_height=.96)
             self.wait_for('Простые варианты без запроса AI')
             self.tap_exact('½ порции')

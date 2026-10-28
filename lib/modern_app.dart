@@ -35,6 +35,7 @@ import 'features/satiety/hunger_observation.dart';
 import 'features/satiety/hunger_pages.dart';
 import 'features/learning/learning_pages.dart';
 import 'features/learning/nutrition_lessons.dart';
+import 'features/learning/today_learning_step.dart';
 import 'features/meal_ideas/meal_ideas_page.dart';
 
 export 'core/models/diary_item.dart';
@@ -64,6 +65,8 @@ class FitLifeHome extends StatefulWidget {
 class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   late FitLifeController _controller;
   late bool _ownsController;
+  late LearningRepository _learningRepository;
+  int _learningRevision = 0;
   int tab = 0;
   DiaryRepository get _repository =>
       DiaryRepository.withLoader(preferencesLoader: widget.preferencesLoader);
@@ -99,6 +102,7 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
   }
 
   void _attachController() {
+    _learningRepository = LearningRepository(_repository);
     _ownsController = widget.controller == null;
     _controller =
         widget.controller ??
@@ -465,24 +469,10 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 14),
         _card(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Один небольшой шаг',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Разберитесь с порцией или составом в коротком уроке. '
-                'Можно выбрать одну тему и вернуться к остальным позже.',
-              ),
-              TextButton.icon(
-                onPressed: _openLessons,
-                icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('Открыть короткие уроки'),
-              ),
-            ],
+          TodayLearningStep(
+            repository: _learningRepository,
+            revision: _learningRevision,
+            onOpenDiary: _openDiaryFromLesson,
           ),
         ),
         const SizedBox(height: 24),
@@ -1417,15 +1407,18 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
     if (mounted) await _controller.load();
   }
 
-  Future<void> _openLessons() => Navigator.push<void>(
-    context,
-    MaterialPageRoute(
-      builder: (_) => LearningPage(
-        repository: LearningRepository(_repository),
-        onOpenDiary: _openDiaryFromLesson,
+  Future<void> _openLessons() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LearningPage(
+          repository: _learningRepository,
+          onOpenDiary: _openDiaryFromLesson,
+        ),
       ),
-    ),
-  );
+    );
+    if (mounted) setState(() => _learningRevision++);
+  }
 
   Future<void> _openMealIdeas() async {
     final target = day;
