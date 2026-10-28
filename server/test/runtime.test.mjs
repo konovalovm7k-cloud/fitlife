@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Miniflare, convertV4MiniflareOptions, Response as WorkerResponse } from 'miniflare';
-import { hashToken, identificationSchema } from '../src/worker.mjs';
+import { hashToken, identificationSchema, chefSchema } from '../src/worker.mjs';
+import { chefCatalogue, chefCatalogueVersion } from '../src/chef_catalogue.mjs';
 
 test('real Workers runtime and D1 execute authenticated photo contract with mock Gemini', async () => {
   let calls = 0;
@@ -11,6 +12,7 @@ test('real Workers runtime and D1 execute authenticated photo contract with mock
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
     { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
     { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/chef_catalogue.mjs', import.meta.url)) },
   ],
     compatibilityDate: '2026-10-20',
     d1Databases: ['DB'],
@@ -52,11 +54,55 @@ test('real Workers runtime and D1 execute authenticated photo contract with mock
   } finally { await mf.dispose(); }
 });
 
+test('real Workers Chef returns only curated IDs and shares the atomic text quota', async () => {
+  let calls = 0;
+  const id = chefCatalogue[0].recordId;
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/chef_catalogue.mjs', import.meta.url)) },
+  ], compatibilityDate: '2026-10-20', d1Databases: ['DB'],
+    bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite', USER_DAILY_LIMIT: '1' },
+    outboundService: async (request) => {
+      calls++;
+      const input = await request.json();
+      assert.deepEqual(input.generationConfig.responseSchema, chefSchema);
+      assert.equal(input.generationConfig.maxOutputTokens, 1024);
+      return WorkerResponse.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{
+        text: JSON.stringify({ items: [{ recordId: id, grams: 150.5, kcal: 999, source: 'fake' }],
+          warnings: ['check_portions'], title: '100 kcal', satietyHours: 8 }),
+      }] } }] });
+    },
+  }));
+  try {
+    const db = await mf.getD1Database('DB');
+    const sql = readFileSync(new URL('../migrations/0001.sql', import.meta.url), 'utf8');
+    for (const statement of sql.split(';').filter(s => s.trim())) await db.prepare(statement).run();
+    const token = 'a'.repeat(43);
+    await db.prepare('INSERT INTO users(id, token_hash) VALUES (?, ?)').bind('alice', await hashToken(token)).run();
+    const send = (path, requestId) => mf.dispatchFetch(`https://fitlife.test${path}`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Request-Id': requestId },
+      body: JSON.stringify({ text: 'Яблоко' }),
+    });
+    const response = await send('/v2/chef', 'a'.repeat(32));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { version: 1, kind: 'chef', catalogueVersion: chefCatalogueVersion,
+      requestId: 'a'.repeat(32), items: [{ recordId: id, grams: 150.5 }], warnings: ['check_portions'] });
+    assert.equal((await send('/v2/identify-text', 'b'.repeat(32))).status, 429);
+    assert.equal((await send('/v2/chef', 'c'.repeat(32))).status, 429);
+    assert.equal(calls, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM requests').first()).n, 1);
+    await db.prepare('UPDATE users SET enabled = 0').run();
+    assert.equal((await send('/v2/chef', 'd'.repeat(32))).status, 401);
+  } finally { await mf.dispose(); }
+});
+
 test('real Workers runtime validates UTF-8 descriptions and shares quota with photos', async () => {
   let calls = 0;
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
     { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
     { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/chef_catalogue.mjs', import.meta.url)) },
   ], compatibilityDate: '2026-10-20', d1Databases: ['DB'],
     bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite', USER_DAILY_LIMIT: '1' },
     outboundService: async (request) => {
@@ -94,6 +140,7 @@ test('real Workers V2 excludes model nutrition and shares atomic D1 limits with 
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: [
     { type: 'ESModule', path: fileURLToPath(new URL('../src/entry.mjs', import.meta.url)) },
     { type: 'ESModule', path: fileURLToPath(new URL('../src/worker.mjs', import.meta.url)) },
+    { type: 'ESModule', path: fileURLToPath(new URL('../src/chef_catalogue.mjs', import.meta.url)) },
   ], compatibilityDate: '2026-10-20', d1Databases: ['DB'],
     bindings: { GEMINI_API_KEY: 'test-only', GEMINI_MODEL: 'gemini-3.5-flash-lite', USER_DAILY_LIMIT: '2' },
     outboundService: async (request) => {
