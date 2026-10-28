@@ -58,3 +58,9 @@ output filtering, unknown/dry/duplicate IDs, empty results/provider failures and
 real Workers/D1 runtime with mock Gemini. Existing V1 and V2 contracts remain.
 Deployment and live-provider status are recorded separately; passing mocks is
 not a claim that the server has been deployed or a live recipe was generated.
+
+On 2026-10-28 production version `d96a2920-f651-4193-bf5e-6c3809aae3ed`
+was deployed after verifying the prior production version. One explicitly enabled
+synthetic request returned HTTP 200 with four allowlisted IDs and masses; no
+generated nutrient fields. This checks connectivity and the contract, not broad
+recommendation quality. See DEPLOYMENT.md and manual tool/check_chef_live.py.
