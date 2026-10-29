@@ -35,20 +35,21 @@ class SourceSmoke(FeaturesSmoke):
                          str(width // 2), str(height // 3), '350')
         raise AssertionError(f'No editable source field: {identifier}')
 
-    def catalogue_preview(self):
+    def catalogue_preview(self, *, code='14-318', name='Банан, мякоть (CoFID)', kcal='122', fiber='2.1'):
         self.launch()
         self.tap('База продуктов')
-        self.field('catalog-search', '14-318')
-        self.wait_for('Банан, мякоть (CoFID)')
+        self.field('catalog-search', code)
+        self.wait_for(name)
         self.tap_scrolled_exact('Добавить в дневник', max_height=.96)
         self.field('value-editor-number-0', '150.5')
-        self.wait_for('122 ккал', 'Клетчатка: 2.1 г')
+        self.wait_for(kcal + ' ккал', 'Клетчатка: ' + fiber + ' г')
         self.tap('Свойства порции')
-        self.wait_for('Банан, мякоть (CoFID)', 'CoFID 2021 / 14-318')
+        self.wait_for(name, 'CoFID 2021 / ' + code)
         self.tap('Нужно жевать', scroll=True)
         self.scroll_to('Ориентир свойств порции')
         self.wait_for('из 10')
-        self.capture('catalogue-product-satiety-preview')
+        prefix = 'catalogue' if code == '14-318' else 'catalogue-' + code
+        self.capture(prefix + '-product-satiety-preview')
         self.adb('shell', 'input', 'keyevent', '4')
         nodes = self.wait_for('Отмена', 'Добавить')
         field = next(n for n in nodes if n.get('resource-id', '').endswith('value-editor-number-0'))
@@ -57,7 +58,7 @@ class SourceSmoke(FeaturesSmoke):
             raise AssertionError('Catalogue preview changed the portion draft')
         if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
             raise AssertionError('Catalogue keyboard reopened after preview')
-        self.capture('catalogue-portion-draft-return')
+        self.capture(prefix + '-portion-draft-return')
         self.tap_exact('Отмена')
         self.wait_for('База продуктов')
         if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
@@ -68,6 +69,7 @@ class SourceSmoke(FeaturesSmoke):
     def run_source(self):
         try:
             self.catalogue_preview()
+            self.catalogue_preview(code='11-869', name='Рис бурый, цельнозерновой, варёный без соли (CoFID)', kcal='199', fiber='2.3')
             self.launch()
             self.tap('Камера')
             self.tap('Ввести состав с этикетки', scroll=True)

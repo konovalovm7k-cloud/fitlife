@@ -8,6 +8,7 @@ import 'package:fitlife/core/nutrition/nutrition_engine.dart';
 import 'package:fitlife/data/repositories/local_fitlife_repository.dart';
 import 'package:fitlife/features/photo_analysis/food_source_page.dart';
 import 'package:fitlife/features/photo_analysis/photo_models.dart';
+import 'package:fitlife/features/satiety/food_satiety_preview_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,13 +41,22 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, rice.name), findsOneWidget);
-    expect(find.byType(ListTile), findsOneWidget);
+    final brown = records.singleWhere((r) => r.id.endsWith('11-869'));
+    expect(find.widgetWithText(ListTile, brown.name), findsOneWidget);
+    expect(find.byType(ListTile), findsNWidgets(2));
+    await reveal(tester, find.byKey(const Key('source-confirm')));
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('source-confirm')))
           .onPressed,
       isNull,
     );
+    tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .jumpTo(0);
+    await tester.pumpAndSettle();
+    await reveal(tester, find.widgetWithText(ListTile, rice.name));
     await tester.tap(find.widgetWithText(ListTile, rice.name));
     await tester.pumpAndSettle();
     expect(find.text('Выбрано: ${rice.name}'), findsOneWidget);
@@ -157,10 +167,18 @@ void main() {
     },
   );
   test('curated identities, source values and unknown fibre are explicit', () {
-    expect(records, hasLength(20));
-    expect(records.map((r) => r.id).toSet(), hasLength(20));
+    expect(records, hasLength(40));
+    expect(records.map((r) => r.id).toSet(), hasLength(40));
     expect(records.every((r) => r.macrosOnly), isTrue);
-    expect(records.where((r) => r.hasKnownFiber), hasLength(19));
+    expect(
+      records.where((r) => !r.hasKnownFiber).map((r) => r.id),
+      unorderedEquals([
+        'imported_cofid_2021_12-379',
+        'imported_cofid_2021_11-006',
+        'imported_cofid_2021_13-318',
+        'imported_cofid_2021_14-879',
+      ]),
+    );
     expect(yogurt.hasKnownFiber, isFalse); // CoFID AOAC fibre = N.
     expect(rice.profile.kcal, 117);
     expect(rice.profile.water, 69.5);
@@ -220,6 +238,142 @@ void main() {
     expect(reloaded.nutritionDay.entries.first.food.macrosOnly, isTrue);
     expect(reloaded.state.total.fiber, closeTo(.903, 1e-9));
   });
+  test(
+    'expanded foods are engine-compatible; known milk zero differs from unknown grain/nuts',
+    () {
+      for (final record in records) {
+        final source = NutritionSource.catalogue(record);
+        final p = NutritionEngine.portion(source, 100);
+        expect(p.kcal, record.profile.kcal, reason: record.id);
+        expect(source.provenance.recordId, record.id);
+      }
+      final catalog = NutritionCatalog(records: records);
+      final brown = catalog.search('рис бурый вареный').single;
+      expect(brown.id, 'imported_cofid_2021_11-869');
+      expect(catalog.search('рис бурый сырой'), isEmpty);
+      final milk = records.singleWhere((r) => r.id.endsWith('12-313'));
+      final grain = records.singleWhere((r) => r.id.endsWith('11-006'));
+      final nuts = records.singleWhere((r) => r.id.endsWith('14-879'));
+      expect(milk.profile.fiber, 0);
+      expect(milk.hasKnownFiber, isTrue);
+      expect(grain.hasKnownFiber, isFalse);
+      expect(nuts.hasKnownFiber, isFalse);
+    },
+  );
+  test(
+    'expanded records retain IDs, fractions and missingness after real save/reload, without rewriting published food',
+    () async {
+      SharedPreferences.setMockInitialValues({'kept': 'original'});
+      final day = DateTime(2026, 10, 29);
+      final controller = FitLifeController(
+        repository: LocalFitLifeRepository(),
+        clock: () => day,
+      );
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      await controller.addCatalogFood(
+        day,
+        rice,
+        grams: 125.5,
+        entryId: 'published-white',
+        meal: 'Обед',
+        time: '12:00',
+      );
+      final original = controller.state.diary.single.toJson();
+      for (final (code, grams) in [
+        ('11-869', 150.5),
+        ('12-313', 100.25),
+        ('11-006', 100.5),
+      ]) {
+        await controller.addCatalogFood(
+          day,
+          records.singleWhere((r) => r.id.endsWith(code)),
+          grams: grams,
+          entryId: 'new-$code',
+          meal: 'Ужин',
+          time: '18:00',
+        );
+      }
+      final reload = FitLifeController(
+        repository: LocalFitLifeRepository(),
+        clock: () => day,
+      );
+      addTearDown(reload.dispose);
+      await reload.initialize();
+      final saved = reload.state.diary;
+      expect(saved, hasLength(4));
+      expect(saved.first.toJson(), original);
+      expect(saved.map((i) => i.grams), [125.5, 150.5, 100.25, 100.5]);
+      expect(saved.map((i) => i.food.hasKnownFiber), [true, true, true, false]);
+      expect(saved.skip(1).map((i) => i.food.provenance!.recordId), [
+        'imported_cofid_2021_11-869',
+        'imported_cofid_2021_12-313',
+        'imported_cofid_2021_11-006',
+      ]);
+      expect(saved[1].kcal, closeTo(198.66, 1e-9));
+      expect(saved[2].fiber, 0);
+      expect(
+        (await SharedPreferences.getInstance()).getString('kept'),
+        'original',
+      );
+    },
+  );
+  testWidgets(
+    'new brown rice is searchable in Russian and reaches exact sourced portion preview before logging',
+    (tester) async {
+      var writes = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NutritionCatalogPage(
+            onAdd: (_, _) async {
+              writes++;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'рис бурый вареный');
+      await tester.pumpAndSettle();
+      final brown = records.singleWhere((r) => r.id.endsWith('11-869'));
+      final card = find.ancestor(
+        of: find.text(brown.name),
+        matching: find.byType(Card),
+      );
+      final add = find.descendant(
+        of: card,
+        matching: find.text('Добавить в дневник'),
+      );
+      await reveal(tester, add);
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '150,5');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('199 ккал'), findsOneWidget);
+      expect(find.textContaining('Клетчатка: 2.3 г'), findsOneWidget);
+      await reveal(tester, find.byKey(const Key('catalog-satiety-preview')));
+      await tester.tap(find.byKey(const Key('catalog-satiety-preview')));
+      await tester.pumpAndSettle();
+      final page = tester.widget<FoodSatietyPreviewPage>(
+        find.byType(FoodSatietyPreviewPage),
+      );
+      expect(page.source.provenance.recordId, brown.id);
+      expect(page.grams, 150.5);
+      expect(writes, 0);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField))
+            .controller!
+            .text,
+        '150,5',
+      );
+      await tester.tap(find.text('Отмена'));
+      await tester.pumpAndSettle();
+      expect(writes, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'catalogue distinguishes known fibre from missing micronutrients',
     (tester) async {
