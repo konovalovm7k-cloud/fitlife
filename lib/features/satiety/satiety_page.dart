@@ -13,7 +13,8 @@ class SatietyPage extends StatefulWidget {
     required this.meal,
     required this.day,
     this.hungerRepository,
-  }) : preview = false;
+  }) : preview = false,
+       portions = null;
 
   /// Evaluate a planned portion without offering observations for uneaten food.
   const SatietyPage.preview({
@@ -22,8 +23,20 @@ class SatietyPage extends StatefulWidget {
     required this.meal,
     required this.day,
   }) : preview = true,
+       hungerRepository = null,
+       portions = null;
+
+  /// Evaluate a sourced draft without creating diary IDs or an eating time.
+  const SatietyPage.planned({
+    super.key,
+    required List<SourcedSatietyPortion> this.portions,
+    required this.meal,
+    required this.day,
+  }) : items = const [],
+       preview = true,
        hungerRepository = null;
   final List<DiaryItem> items;
+  final List<SourcedSatietyPortion>? portions;
   final String meal;
   final DateTime day;
   final HungerRepository? hungerRepository;
@@ -41,7 +54,12 @@ class _SatietyPageState extends State<SatietyPage> {
   Widget build(BuildContext context) {
     SatietyEstimate? result;
     try {
-      result = SatietyEstimate.calculate(widget.items, structure: _structure);
+      result = widget.portions == null
+          ? SatietyEstimate.calculate(widget.items, structure: _structure)
+          : SatietyEstimate.fromPortions(
+              widget.portions!,
+              structure: _structure,
+            );
     } on FormatException {
       // Old AI estimates are readable but are not evidence for a new score.
     }
@@ -56,8 +74,8 @@ class _SatietyPageState extends State<SatietyPage> {
           if (widget.preview) ...[
             const SizedBox(height: 12),
             const Text(
-              'Предварительная оценка выбранной порции. Дневник и сохранённое '
-              'блюдо не меняются. Наблюдения голода доступны после записи еды.',
+              'Предварительная оценка выбранной порции. Дневник и состав '
+              'блюда не меняются. Наблюдения голода доступны после записи еды.',
             ),
           ],
           const SizedBox(height: 12),
@@ -69,7 +87,9 @@ class _SatietyPageState extends State<SatietyPage> {
           if (widget.preview)
             ExpansionTile(
               key: const Key('recipe-preview-sources'),
-              title: Text('Состав и источники (${widget.items.length})'),
+              title: Text(
+                'Состав и источники (${widget.portions?.length ?? widget.items.length})',
+              ),
               children: _ingredients,
             )
           else
@@ -193,13 +213,22 @@ class _SatietyPageState extends State<SatietyPage> {
   }
 
   List<Widget> get _ingredients => [
+    for (final portion in widget.portions ?? <SourcedSatietyPortion>[])
+      _sourceLine(
+        portion.source.name,
+        portion.grams,
+        portion.source.provenance.reference,
+      ),
     for (final item in widget.items)
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          '${item.food.name} · ${item.grams} г\n'
-          'Источник: ${item.food.provenance?.reference ?? 'не подтверждён'}',
-        ),
+      _sourceLine(
+        item.food.name,
+        item.grams,
+        item.food.provenance?.reference ?? 'не подтверждён',
       ),
   ];
+
+  Widget _sourceLine(String name, double grams, String reference) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text('$name · $grams г\nИсточник: $reference'),
+  );
 }

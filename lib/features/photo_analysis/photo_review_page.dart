@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../app/fitlife_theme.dart';
 import '../../core/models/nutrition_profile.dart';
+import '../satiety/satiety_estimate.dart';
+import '../satiety/satiety_page.dart';
 import 'food_source_page.dart';
 import 'photo_models.dart';
 
@@ -27,6 +29,26 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
   String? _error;
   bool get _complete =>
       _items.isNotEmpty && _items.every((f) => f.source != null);
+
+  void _previewProperties() {
+    if (_saving || !_complete) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final portions = List<SourcedSatietyPortion>.unmodifiable([
+      for (final item in _items) (source: item.source!, grams: item.grams),
+    ]);
+    final meal = _meal;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SatietyPage.planned(
+          portions: portions,
+          meal: meal,
+          day: widget.day,
+        ),
+      ),
+    );
+  }
+
   Future<void> _edit(int? index) async {
     final result = await Navigator.push<SourcedFoodEdit>(
       context,
@@ -171,6 +193,18 @@ class _PhotoReviewPageState extends State<PhotoReviewPage> {
               onChanged: _saving ? null : (v) => setState(() => _meal = v!),
             ),
             const SizedBox(height: 16),
+            if (_complete) ...[
+              Semantics(
+                identifier: 'review-meal-properties',
+                child: OutlinedButton.icon(
+                  key: const Key('review-meal-properties'),
+                  onPressed: _saving ? null : _previewProperties,
+                  icon: const Icon(Icons.spa_outlined),
+                  label: const Text('Свойства порции блюда'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (_items.isEmpty)
               const Text(
                 'Продуктов пока нет. Добавьте вручную или вернитесь к фото.',
