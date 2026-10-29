@@ -22,6 +22,7 @@ Future<void> confirmRiceLabel(
   await tester.tap(find.byKey(const Key('food-source-0')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const Key('source-grams')), grams);
+  await reveal(tester, find.text('С этикетки'));
   await tester.tap(find.text('С этикетки'));
   await tester.pumpAndSettle();
   final reference = find.widgetWithText(
