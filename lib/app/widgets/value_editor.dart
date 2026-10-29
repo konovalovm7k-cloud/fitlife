@@ -44,6 +44,7 @@ class ValueEditorDialog extends StatefulWidget {
     this.saveLabel = 'Сохранить',
     this.onSave,
     this.summaryBuilder,
+    this.detailsBuilder,
     this.choice,
   });
 
@@ -55,6 +56,7 @@ class ValueEditorDialog extends StatefulWidget {
   final String? Function(List<double>)? validate;
   final Future<void> Function(ValueEditResult)? onSave;
   final String? Function(List<double>)? summaryBuilder;
+  final Widget Function(List<double> values, bool saving)? detailsBuilder;
   final ChoiceFieldSpec? choice;
 
   @override
@@ -83,8 +85,7 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
   double? _parse(String value) =>
       double.tryParse(value.trim().replaceAll(',', '.'));
 
-  String? get _summaryText {
-    if (widget.summaryBuilder == null) return null;
+  List<double>? get _validValues {
     final values = <double>[];
     for (var i = 0; i < _controllers.length; i++) {
       final value = _parse(_controllers[i].text);
@@ -97,7 +98,18 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
       }
       values.add(value);
     }
-    return widget.summaryBuilder!(values);
+    return values;
+  }
+
+  String? get _summaryText {
+    final values = _validValues;
+    return values == null ? null : widget.summaryBuilder?.call(values);
+  }
+
+  Widget? get _detailsWidget {
+    if (widget.detailsBuilder == null) return null;
+    final values = _validValues;
+    return values == null ? null : widget.detailsBuilder!(values, _saving);
   }
 
   void _save() {
@@ -155,28 +167,35 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
               const SizedBox(height: 12),
             ],
             for (var i = 0; i < widget.fields.length; i++) ...[
-              TextFormField(
-                controller: _controllers[i],
-                readOnly: _saving,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              Semantics(
+                identifier: 'value-editor-number-$i',
+                child: TextFormField(
+                  controller: _controllers[i],
+                  readOnly: _saving,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: widget.fields[i].label,
+                  ),
+                  validator: (text) {
+                    final value = _parse(text ?? '');
+                    final spec = widget.fields[i];
+                    return value == null ||
+                            !value.isFinite ||
+                            value < spec.min ||
+                            value > spec.max
+                        ? 'Введи число от ${spec.min} до ${spec.max}'
+                        : null;
+                  },
+                  onFieldSubmitted: (_) =>
+                      i == widget.fields.length - 1 ? _save() : null,
+                  onChanged:
+                      widget.summaryBuilder == null &&
+                          widget.detailsBuilder == null
+                      ? null
+                      : (_) => setState(() => _error = null),
                 ),
-                decoration: InputDecoration(labelText: widget.fields[i].label),
-                validator: (text) {
-                  final value = _parse(text ?? '');
-                  final spec = widget.fields[i];
-                  return value == null ||
-                          !value.isFinite ||
-                          value < spec.min ||
-                          value > spec.max
-                      ? 'Введи число от ${spec.min} до ${spec.max}'
-                      : null;
-                },
-                onFieldSubmitted: (_) =>
-                    i == widget.fields.length - 1 ? _save() : null,
-                onChanged: widget.summaryBuilder == null
-                    ? null
-                    : (_) => setState(() => _error = null),
               ),
               if (i < widget.fields.length - 1) const SizedBox(height: 12),
             ],
@@ -202,6 +221,10 @@ class _ValueEditorDialogState extends State<ValueEditorDialog> {
             if (_summaryText case final summary?) ...[
               const SizedBox(height: 12),
               Text(summary),
+            ],
+            if (_detailsWidget case final details?) ...[
+              const SizedBox(height: 12),
+              details,
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),

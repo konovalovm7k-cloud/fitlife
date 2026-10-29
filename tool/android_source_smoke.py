@@ -29,8 +29,39 @@ class SourceSmoke(FeaturesSmoke):
                      str(width // 2), str(height // 3), '350')
         raise AssertionError(f'No editable source field: {identifier}')
 
+    def catalogue_preview(self):
+        self.launch()
+        self.tap('База продуктов')
+        self.field('catalog-search', '14-318')
+        self.wait_for('Банан, мякоть (CoFID)')
+        self.tap_scrolled_exact('Добавить в дневник', max_height=.96)
+        self.field('value-editor-number-0', '150.5')
+        self.wait_for('122 ккал', 'Клетчатка: 2.1 г')
+        self.tap('Свойства порции')
+        self.wait_for('Банан, мякоть (CoFID)', 'CoFID 2021 / 14-318')
+        self.tap('Нужно жевать', scroll=True)
+        self.scroll_to('Ориентир свойств порции')
+        self.wait_for('из 10')
+        self.capture('catalogue-product-satiety-preview')
+        self.adb('shell', 'input', 'keyevent', '4')
+        nodes = self.wait_for('Отмена', 'Добавить')
+        field = next(n for n in nodes if n.get('resource-id', '').endswith('value-editor-number-0'))
+        editable = next((n for n in field.iter('node') if n.get('class') == 'android.widget.EditText'), field)
+        if editable.get('text') != '150.5':
+            raise AssertionError('Catalogue preview changed the portion draft')
+        if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
+            raise AssertionError('Catalogue keyboard reopened after preview')
+        self.capture('catalogue-portion-draft-return')
+        self.tap_exact('Отмена')
+        self.wait_for('База продуктов')
+        if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
+            raise AssertionError('Catalogue search keyboard reopened after cancel')
+        self.adb('shell', 'input', 'keyevent', '4')
+        self.wait_for('Добавить еду', 'Прогресс')
+
     def run_source(self):
         try:
+            self.catalogue_preview()
             self.launch()
             self.tap('Камера')
             self.tap('Ввести состав с этикетки', scroll=True)
