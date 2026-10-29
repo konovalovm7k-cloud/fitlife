@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-29T11:02:55.241308+00:00",
+  "mode": "live",
+  "requestAttempts": 2,
+  "selectedCases": [
+    "banana",
+    "mixed-rice-beans"
+  ],
+  "results": [
+    {
+      "case": "banana",
+      "sha256": "927fcf129b0dfc1e5925d861b9c5a60f99af86c274792c489dde5e76a66c4bd9",
+      "status": "passed",
+      "items": [
+        {
+          "name": "банан свежий",
+          "grams": 120,
+          "confidence": "high"
+        }
+      ],
+      "warnings": [
+        "uncertain_portion"
+      ],
+      "durationSeconds": 4.01
+    },
+    {
+      "case": "mixed-rice-beans",
+      "sha256": "e9de7646d63bd15d1172005400bf679478622ae601b95e697542c5ae59154878",
+      "status": "passed",
+      "items": [
+        {
+          "name": "Рис с фасолью отварной",
+          "grams": 200,
+          "confidence": "high"
+        },
+        {
+          "name": "Курица тушеная",
+          "grams": 150,
+          "confidence": "high"
+        },
+        {
+          "name": "Банан жареный",
+          "grams": 70,
+          "confidence": "high"
+        },
+        {
+          "name": "Салат овощной свежий",
+          "grams": 60,
+          "confidence": "medium"
+        },
+        {
+          "name": "Сок апельсиновый",
+          "grams": 250,
+          "confidence": "medium"
+        }
+      ],
+      "warnings": [
+        "uncertain_portion",
+        "preparation_unknown"
+      ],
+      "durationSeconds": 2.95
+    }
+  ],
+  "scope": "identity only; estimated grams are not measured ground truth",
+  "passed": true
+}
