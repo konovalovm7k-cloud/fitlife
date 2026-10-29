@@ -9,8 +9,15 @@ void main() {
   );
   final catalogue = NutritionCatalog(records: records);
   test('word order, multiple spaces and е/ё find the prepared rice', () {
-    expect(catalogue.search(' ВАРЕНЫЙ   рис ').single.id, endsWith('11-858'));
-    expect(catalogue.search('рис, варёный').single.id, endsWith('11-858'));
+    for (final query in [' ВАРЕНЫЙ   рис ', 'рис, варёный']) {
+      expect(
+        catalogue.search(query).map((r) => r.id),
+        unorderedEquals([
+          'imported_cofid_2021_11-858',
+          'imported_cofid_2021_11-869',
+        ]),
+      );
+    }
   });
   test('source identity is searchable by code and original English name', () {
     expect(catalogue.search('11-858').single.id, endsWith('11-858'));
