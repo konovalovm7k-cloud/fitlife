@@ -40,6 +40,7 @@ class ScrollTargetTest(unittest.TestCase):
         smoke.tap_scrolled_exact = Mock(side_effect=tap)
         smoke.tap_exact = Mock()
         smoke.set_number = Mock()
+        smoke.preview_saved_portion = Mock()
         smoke.read_screen = Mock(return_value=[])
         smoke.wait_for = Mock(side_effect=wait_for)
         smoke.capture = Mock()

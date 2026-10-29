@@ -13,11 +13,21 @@ class SatietyPage extends StatefulWidget {
     required this.meal,
     required this.day,
     this.hungerRepository,
-  });
+  }) : preview = false;
+
+  /// Evaluate a planned portion without offering observations for uneaten food.
+  const SatietyPage.preview({
+    super.key,
+    required this.items,
+    required this.meal,
+    required this.day,
+  }) : preview = true,
+       hungerRepository = null;
   final List<DiaryItem> items;
   final String meal;
   final DateTime day;
   final HungerRepository? hungerRepository;
+  final bool preview;
   @override
   State<SatietyPage> createState() => _SatietyPageState();
 }
@@ -36,26 +46,34 @@ class _SatietyPageState extends State<SatietyPage> {
       // Old AI estimates are readable but are not evidence for a new score.
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Умная сытость')),
+      appBar: AppBar(
+        title: Text(widget.preview ? 'Свойства порции блюда' : 'Умная сытость'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text(widget.meal, style: Theme.of(context).textTheme.headlineSmall),
+          if (widget.preview) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Предварительная оценка выбранной порции. Дневник и сохранённое '
+              'блюдо не меняются. Наблюдения голода доступны после записи еды.',
+            ),
+          ],
           const SizedBox(height: 12),
           const Text(
             'Экспериментальная оценка свойств порции. Она не измеряет ваш голод, '
             'не оценивает полезность еды и не предсказывает часы сытости.',
           ),
           const SizedBox(height: 16),
-          ...widget.items.map(
-            (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '${i.food.name} · ${i.grams} г\n'
-                'Источник: ${i.food.provenance?.reference ?? 'не подтверждён'}',
-              ),
-            ),
-          ),
+          if (widget.preview)
+            ExpansionTile(
+              key: const Key('recipe-preview-sources'),
+              title: Text('Состав и источники (${widget.items.length})'),
+              children: _ingredients,
+            )
+          else
+            ..._ingredients,
           if (result == null) ...[
             const SizedBox(height: 16),
             const Text(
@@ -138,32 +156,34 @@ class _SatietyPageState extends State<SatietyPage> {
             'Баллы не меняют цели, награды или состояние питомца.',
           ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            key: const Key('observe-hunger'),
-            onPressed: () => Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => HungerEntryPage(
-                  repository: _observations,
-                  items: widget.items,
-                  meal: widget.meal,
-                  day: widget.day,
-                  structure: _structure,
+          if (!widget.preview) ...[
+            OutlinedButton.icon(
+              key: const Key('observe-hunger'),
+              onPressed: () => Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HungerEntryPage(
+                    repository: _observations,
+                    items: widget.items,
+                    meal: widget.meal,
+                    day: widget.day,
+                    structure: _structure,
+                  ),
                 ),
               ),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Отметить голод сейчас'),
             ),
-            icon: const Icon(Icons.edit_note),
-            label: const Text('Отметить голод сейчас'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => HungerHistoryPage(repository: _observations),
+            TextButton(
+              onPressed: () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HungerHistoryPage(repository: _observations),
+                ),
               ),
+              child: const Text('Мои наблюдения голода'),
             ),
-            child: const Text('Мои наблюдения голода'),
-          ),
+          ],
           const SizedBox(height: 16),
           const SatietyExplanation(),
           const SizedBox(height: 24),
@@ -171,4 +191,15 @@ class _SatietyPageState extends State<SatietyPage> {
       ),
     );
   }
+
+  List<Widget> get _ingredients => [
+    for (final item in widget.items)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          '${item.food.name} · ${item.grams} г\n'
+          'Источник: ${item.food.provenance?.reference ?? 'не подтверждён'}',
+        ),
+      ),
+  ];
 }
