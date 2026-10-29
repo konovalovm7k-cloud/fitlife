@@ -135,7 +135,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await tester.pumpWidget(
         MaterialApp(
-          theme: fitLifeTheme(),
+          theme: fitLifeTheme().copyWith(platform: TargetPlatform.android),
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(
@@ -163,7 +163,13 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      final focusedNutrient = find.byKey(const Key('source-nutrient-3'));
+      await reveal(tester, focusedNutrient);
+      await tester.showKeyboard(focusedNutrient);
+      final sourceFocus = FocusManager.instance.primaryFocus!;
+      expect(sourceFocus.hasFocus, isTrue);
       await reveal(tester, find.byKey(const Key('source-satiety-preview')));
+      expect(sourceFocus.hasFocus, isTrue);
       await tester.tap(find.byKey(const Key('source-satiety-preview')));
       await tester.pumpAndSettle();
       expect(find.byType(FoodSatietyPreviewPage), findsOneWidget);
@@ -185,6 +191,7 @@ void main() {
       expect(saves, 0);
       await tester.pageBack();
       await tester.pumpAndSettle();
+      expect(sourceFocus.hasFocus, isFalse);
       tester
           .state<ScrollableState>(find.byType(Scrollable).first)
           .position

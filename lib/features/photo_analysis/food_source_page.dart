@@ -151,15 +151,18 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                     key: const Key('source-satiety-preview'),
                     onPressed: _saving
                         ? null
-                        : () => Navigator.push<void>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => FoodSatietyPreviewPage(
-                                source: source,
-                                grams: grams,
+                        : () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FoodSatietyPreviewPage(
+                                  source: source,
+                                  grams: grams,
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                     icon: const Icon(Icons.spa_outlined),
                     label: const Text('Оценить свойства порции'),
                   ),

@@ -52,6 +52,8 @@ class SourceSmoke(FeaturesSmoke):
             self.capture('source-product-satiety-preview')
             self.adb('shell', 'input', 'keyevent', '4')
             self.wait_for('Продукт и источник')
+            if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
+                raise AssertionError('Source keyboard reopened after portion preview')
             self.tap('Подтвердить источник и порцию', scroll=True)
             self.wait_for('СОСТАВ ПРОДУКТОВ', '196 ккал', 'Клетчатка: состав неполный')
             # Keep this fixture separate from the legacy breakfast used by the

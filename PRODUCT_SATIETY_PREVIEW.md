@@ -41,3 +41,19 @@ Back/cancel/cold launch left every preference entry unchanged. No AI calls.
 
 Full GitHub CI with all 12 native scenarios is still required before merge.
 Physical phone and native iOS are not tested.
+
+### Android keyboard return correction
+
+CI 40823586219 built and verified the release, but the source scenario failed
+after returning from the preview. Its screenshot showed the numeric IME restored
+over the source form. This was reproduced on the installed original release APK
+without saving food. The preview action now unfocuses the editor before opening
+the route; native CI explicitly rejects a restored IME before confirming.
+
+The corrected signed 4.6.22+36 APK has SHA256
+0dfcb634b68dde119f1f0e0825bd48fc74bdf485f9e1727521aed039866e4007.
+Analysis, 265 Flutter-/46 Python-tests and the release identity/signature gate
+pass. On the actual Android emulator the same flow returns with no reopened IME,
+reaches confirmation with 150.5 g / 196 kcal / unknown fiber, and cancel/cold launch
+preserves every serialized entry in all four preference files. The physical
+phone and full repeated GitHub CI remain separate required checks.
