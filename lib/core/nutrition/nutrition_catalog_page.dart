@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../app/widgets/value_editor.dart';
+import '../../features/satiety/food_satiety_preview_page.dart';
+import 'nutrition_engine.dart';
 import 'dart:math';
 import '../models/nutrition_profile.dart';
 import 'nutrition_database.dart';
@@ -87,26 +89,29 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                child: TextField(
-                  controller: _search,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Поиск продуктов',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _search.text.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: () {
-                              _search.clear();
-                              setState(() {});
-                            },
-                            icon: const Icon(Icons.clear),
-                          ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
+                child: Semantics(
+                  identifier: 'catalog-search',
+                  child: TextField(
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Поиск продуктов',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _search.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                _search.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.clear),
+                            ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ),
@@ -176,7 +181,8 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
 
   Future<void> _addFood(NutritionFoodRecord food) async {
     if (_saving || _pending != null) return;
-    final grams = await _askGrams(food.name);
+    FocusManager.instance.primaryFocus?.unfocus();
+    final grams = await _askGrams(food);
     if (!mounted || grams == null || !grams.isFinite || grams <= 0) return;
     setState(() {
       _pending = NutritionDayEntry(food: food, grams: grams);
@@ -218,13 +224,50 @@ class _NutritionCatalogPageState extends State<NutritionCatalogPage> {
     }
   }
 
-  Future<double?> _askGrams(String name) async {
+  Future<double?> _askGrams(NutritionFoodRecord food) async {
     final value = await showDialog<ValueEditResult>(
       context: context,
       builder: (context) => ValueEditorDialog(
-        title: name,
+        title: food.name,
         saveLabel: 'Добавить',
         fields: const [NumberFieldSpec('Граммы', 100, min: 0.1)],
+        summaryBuilder: (values) {
+          try {
+            final p = NutritionEngine.portion(
+              NutritionSource.catalogue(food),
+              values.single,
+            );
+            return '${p.kcal.round()} ккал · Б ${p.protein.toStringAsFixed(1)} г · '
+                'Ж ${p.fat.toStringAsFixed(1)} г · У ${p.carbs.toStringAsFixed(1)} г\n'
+                'Клетчатка: ${food.hasKnownFiber ? '${p.fiber.toStringAsFixed(1)} г' : 'неизвестно'}';
+          } on FormatException {
+            return null;
+          }
+        },
+        detailsBuilder: (values, saving) {
+          if (values.single > 3000) {
+            return const Text('Оценка свойств доступна для порций до 3000 г.');
+          }
+          return TextButton.icon(
+            key: const Key('catalog-satiety-preview'),
+            onPressed: saving
+                ? null
+                : () {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FoodSatietyPreviewPage(
+                          source: NutritionSource.catalogue(food),
+                          grams: values.single,
+                        ),
+                      ),
+                    );
+                  },
+            icon: const Icon(Icons.spa_outlined),
+            label: const Text('Свойства порции'),
+          );
+        },
       ),
     );
     return value?.values.first;
