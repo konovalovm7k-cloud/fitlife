@@ -3,6 +3,8 @@ import '../../core/nutrition/nutrition_engine.dart';
 
 enum FoodStructure { solid, soft, liquid, mixed }
 
+typedef SourcedSatietyPortion = ({NutritionSource source, double grams});
+
 /// A bounded, deliberately uncalibrated food-property heuristic, NOT Holt's
 /// measured Satiety Index. Versioned formula and limitations: SMART_SATIETY.md.
 class SatietyEstimate {
@@ -30,8 +32,31 @@ class SatietyEstimate {
   static SatietyEstimate calculate(
     List<DiaryItem> items, {
     FoodStructure? structure,
+  }) => fromPortions([
+    for (final item in items)
+      (source: _diarySource(item.food), grams: item.grams),
+  ], structure: structure);
+
+  static NutritionSource _diarySource(FoodItem food) {
+    final provenance = food.provenance;
+    if (provenance == null) {
+      throw const FormatException('Confirm each food source first');
+    }
+    return NutritionSource(
+      name: food.name,
+      profile: food.profile,
+      provenance: provenance,
+      fiberKnown: food.hasKnownFiber,
+    );
+  }
+
+  /// Evaluate attributed portions without creating or saving a diary record.
+  /// The same aggregation and formula are used before and after diary save.
+  static SatietyEstimate fromPortions(
+    List<SourcedSatietyPortion> portions, {
+    FoodStructure? structure,
   }) {
-    if (items.isEmpty) throw const FormatException('Empty meal');
+    if (portions.isEmpty) throw const FormatException('Empty meal');
     var mass = 0.0;
     var kcal = 0.0;
     var protein = 0.0;
@@ -39,31 +64,19 @@ class SatietyEstimate {
     var water = 0.0;
     var fiberKnown = true;
     var waterKnown = true;
-    for (final item in items) {
-      final food = item.food;
-      final provenance = food.provenance;
-      if (provenance == null) {
-        throw const FormatException('Confirm each food source first');
-      }
-      final p = NutritionEngine.portion(
-        NutritionSource(
-          name: food.name,
-          profile: food.profile,
-          provenance: provenance,
-          fiberKnown: food.hasKnownFiber,
-        ),
-        item.grams,
-      );
-      if (!p.water.isFinite || p.water < 0 || p.water > item.grams) {
+    for (final portion in portions) {
+      final source = portion.source;
+      final p = NutritionEngine.portion(source, portion.grams);
+      if (!p.water.isFinite || p.water < 0 || p.water > portion.grams) {
         throw const FormatException('Invalid food water');
       }
-      mass += item.grams;
+      mass += portion.grams;
       kcal += p.kcal;
       protein += p.protein;
       fiber += p.fiber;
       // Label entry does not ask for water. A legacy/default zero is unknown.
-      waterKnown &= provenance.kind == 'catalogue' && p.water > 0;
-      fiberKnown &= food.hasKnownFiber;
+      waterKnown &= source.provenance.kind == 'catalogue' && p.water > 0;
+      fiberKnown &= source.fiberKnown;
       water += p.water;
     }
     if (!mass.isFinite || !kcal.isFinite || mass > 3000 || kcal <= 0) {

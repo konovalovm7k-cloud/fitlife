@@ -7,6 +7,7 @@ import '../../core/nutrition/nutrition_database.dart';
 import '../../core/nutrition/nutrition_day.dart';
 import '../../core/nutrition/nutrition_engine.dart';
 import 'photo_models.dart';
+import '../satiety/food_satiety_preview_page.dart';
 
 class SourcedFoodEdit {
   const SourcedFoodEdit(this.food) : deleted = false;
@@ -145,6 +146,25 @@ class _FoodSourcePageState extends State<FoodSourcePage> {
                   ),
                   const Text(
                     'Расчёт по выбранному источнику. Запись изменится только после подтверждения.',
+                  ),
+                  TextButton.icon(
+                    key: const Key('source-satiety-preview'),
+                    onPressed: _saving
+                        ? null
+                        : () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FoodSatietyPreviewPage(
+                                  source: source,
+                                  grams: grams,
+                                ),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.spa_outlined),
+                    label: const Text('Оценить свойства порции'),
                   ),
                 ],
               ),

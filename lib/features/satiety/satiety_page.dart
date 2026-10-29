@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/models/diary_item.dart';
 import 'satiety_estimate.dart';
+import 'satiety_explanation.dart';
 import '../../data/repositories/diary_repository.dart';
 import 'hunger_observation.dart';
 import 'hunger_pages.dart';
@@ -25,12 +26,6 @@ class _SatietyPageState extends State<SatietyPage> {
   late final _observations =
       widget.hungerRepository ?? HungerRepository(DiaryRepository.withLoader());
   FoodStructure? _structure;
-  static const structures = {
-    FoodStructure.solid: 'Нужно жевать',
-    FoodStructure.soft: 'Мягкая / пюре',
-    FoodStructure.liquid: 'Жидкая',
-    FoodStructure.mixed: 'Смешанная',
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +69,7 @@ class _SatietyPageState extends State<SatietyPage> {
             const Text('Как выглядит вся порция?'),
             Wrap(
               spacing: 8,
-              children: structures.entries
+              children: satietyStructureLabels.entries
                   .map(
                     (e) => ChoiceChip(
                       label: Text(e.value),
@@ -170,27 +165,7 @@ class _SatietyPageState extends State<SatietyPage> {
             child: const Text('Мои наблюдения голода'),
           ),
           const SizedBox(height: 16),
-          const ExpansionTile(
-            title: Text('Как устроена оценка'),
-            children: [
-              Padding(
-                padding: EdgeInsets.all(12),
-                child: Text(
-                  'Это локальная формула FitLife v1, а не измеренный '
-                  'индекс Холта. Веса факторов и шкала 1–10 пока не проверены '
-                  'на пользователях. Учитываем массу, белок, клетчатку, воду '
-                  'в еде, энергоёмкость и выбранную структуру. Чем больше '
-                  'пробелов в данных, тем шире возможный диапазон.\n\n'
-                  'Исследования факторов:\n'
-                  'Holt et al., 1995 — pubmed.ncbi.nlm.nih.gov/7498104\n'
-                  'Flood-Obbagy & Rolls, 2009 — pubmed.ncbi.nlm.nih.gov/19110020\n'
-                  'Rolls et al., 1999 — pubmed.ncbi.nlm.nih.gov/10500012\n\n'
-                  'Эти работы не подтверждают нашу формулу и не дают '
-                  'универсального времени сытости.',
-                ),
-              ),
-            ],
-          ),
+          const SatietyExplanation(),
           const SizedBox(height: 24),
         ],
       ),
