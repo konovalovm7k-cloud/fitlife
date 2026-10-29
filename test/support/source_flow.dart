@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> reveal(WidgetTester tester, Finder finder) async {
+  // Text edits can change the live portion card's height. Settle that layout
+  // before choosing a scroll offset or tapping the confirmation below it.
+  await tester.pumpAndSettle();
   await tester.scrollUntilVisible(
     finder,
     180,
