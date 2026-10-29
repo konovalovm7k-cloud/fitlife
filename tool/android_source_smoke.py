@@ -25,8 +25,14 @@ class SourceSmoke(FeaturesSmoke):
                     if 'mInputShown=true' in self.adb('shell', 'dumpsys', 'input_method'):
                         self.adb('shell', 'input', 'keyevent', '4')
                     return
-            self.adb('shell', 'input', 'swipe', str(width // 2), str(height * 2 // 3),
-                     str(width // 2), str(height // 3), '350')
+            if identifier == 'catalog-search':
+                # This field starts at the top of a newly opened route. Wait
+                # for its semantics instead of scrolling the still-opening page
+                # and then permanently searching below the input.
+                time.sleep(.25)
+            else:
+                self.adb('shell', 'input', 'swipe', str(width // 2), str(height * 2 // 3),
+                         str(width // 2), str(height // 3), '350')
         raise AssertionError(f'No editable source field: {identifier}')
 
     def catalogue_preview(self):

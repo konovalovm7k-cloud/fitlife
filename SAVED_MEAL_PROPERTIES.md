@@ -32,7 +32,7 @@ portion. No APIs or persistence keys are added.
 Full analysis, tests, signed release build and real Android verification are
 required before completion. Full CI and dependency checks are required to merge.
 
-Local analysis, all 271 Flutter-/46 Python-tests, actionlint and signed release
+Local analysis, all 271 Flutter-/48 Python-tests, actionlint and signed release
 APK 4.6.24+38 pass. Actual package/version and the existing release certificate
 are verified. Final APK SHA256:
 a934786b2be9ac151dad102339c37fce16cddeb2567d725fef939c02ea567670.
@@ -50,3 +50,20 @@ The source expansion and exact source text are also checked at320×700/text1.8.
 
 Full GitHub CI with all12 native scenarios remains required before merge.
 Physical Android and native iOS remain untested.
+
+### Catalogue opening readiness in native CI
+
+CI40829561433 passed startup, saved-meal properties and Today, then failed at
+catalogue search before the source scenario. Its image showed the catalogue
+already scrolled below the search field. The field helper previously swiped when
+route semantics were not ready, making a top input permanently unreachable.
+It now waits for the fixed top catalogue input and still fails if it never
+appears; it never types into another field or drops a scenario.
+
+The regression fails against the original helper and passes after the fix.
+A second test checks safe failure without typing or scrolling if another input
+is shown instead. All48 Python checks, 271 Flutter checks, analyze, actionlint
+and rebuild pass. The APK is byte-identical to the hash above: application
+sources are unchanged. On Android, withholding the first two catalogue input
+snapshots still passes the exact catalogue preview/back/cancel/cold method,
+with all four serialized preference files unchanged. Full new CI is required.
