@@ -32,6 +32,7 @@ class FixtureMealTest(unittest.TestCase):
         smoke.scroll_to = Mock(return_value=[])
         smoke.set_number = Mock()
         smoke.read_screen = Mock(return_value=[])
+        smoke.check_meal_correction = Mock()
         return smoke, state
 
     def test_manual_egg_chooses_fixed_breakfast_from_night_default(self):

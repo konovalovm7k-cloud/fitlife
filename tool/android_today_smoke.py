@@ -4,10 +4,67 @@ Run after release and feature smoke, on the same disposable emulator only.
 """
 import argparse
 import os
+import re
 from android_features_smoke import FeaturesSmoke
 
 
 class TodaySmoke(FeaturesSmoke):
+    def tap_food_editor(self, name):
+        width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
+        label = 'Источник состава: ' + name
+        for _ in range(2):
+            nodes = self.scroll_to(label)
+            sources = [n for n in nodes if self.label(n).strip() == label
+                       and n.get('enabled') == 'true' and n.get('clickable') == 'true']
+            if len(sources) != 1:
+                raise AssertionError('Expected one named fixture source action')
+            bounds = list(map(int, re.findall(r'\d+', sources[0].get('bounds', ''))))
+            if len(bounds) != 4:
+                raise AssertionError('Food action bounds unavailable')
+            center = (bounds[1] + bounds[3]) / 2
+            edits = []
+            for node in nodes:
+                b = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                if (self.label(node).strip() == 'Изменить порцию'
+                        and node.get('enabled') == 'true' and node.get('clickable') == 'true'
+                        and len(b) == 4 and b[0] >= bounds[2]
+                        and abs((b[1] + b[3]) / 2 - center) <= 2):
+                    edits.append((node, b))
+            if len(edits) != 1:
+                raise AssertionError('Expected one edit action in the named food row')
+            node, b = edits[0]
+            if height * .1 <= b[1] < b[3] <= height * .84:
+                self.tap_node(node)
+                return
+            # Move the exact row above the floating Add/bottom navigation, then
+            # re-resolve its sibling: never reuse pre-swipe coordinates.
+            self.adb('shell', 'input', 'swipe', str(width // 2), str(height * 2 // 3),
+                     str(width // 2), str(height // 3), '350')
+        raise AssertionError('Named food edit is not uniquely unobscured')
+
+    def check_meal_correction(self):
+        self.tap_food_editor('Куриная грудка')
+        self.wait_for('Куриная грудка', '100.0', 'Завтрак')
+        self.tap('Приём пищи')
+        self.tap_exact('Ужин')
+        self.tap_exact('Сохранить')
+        self.wait_for('Добавить еду', 'Прогресс')
+        self.launch()
+        self.tap('Питание')
+        self.tap_food_editor('Куриная грудка')
+        self.wait_for('Куриная грудка', '100.0', 'Ужин')
+        self.capture('today-meal-corrected-relaunch')
+        # Restore only this fixture's group before the remaining sourced cases.
+        self.tap('Приём пищи')
+        self.tap_exact('Завтрак')
+        self.tap_exact('Сохранить')
+        self.wait_for('Добавить еду', 'Прогресс')
+        self.launch()
+        self.tap('Питание')
+        self.tap_food_editor('Куриная грудка')
+        self.wait_for('100.0', 'Завтрак')
+        self.tap_exact('Отмена')
+
     def run_today(self):
         try:
             self.launch()
@@ -34,6 +91,7 @@ class TodaySmoke(FeaturesSmoke):
             self.scroll_to("100 г · 120 ккал")
             self.wait_for("Куриная грудка", "100 г · 120 ккал")
             self.capture("today-action-relaunch")
+            self.check_meal_correction()
             print("PASS: Today nutrients, real weight, supportive companion and guidance-to-diary save survive relaunch")
         except Exception:
             self.capture("today-failure")
