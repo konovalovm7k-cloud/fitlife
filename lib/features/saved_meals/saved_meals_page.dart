@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../app/fitlife_theme.dart';
+import '../../core/models/diary_item.dart';
 import '../../data/repositories/diary_repository.dart';
+import '../satiety/satiety_page.dart';
 import 'saved_meal_editor.dart';
 import 'saved_meals.dart';
 
@@ -42,6 +44,7 @@ class _SavedMealsPageState extends State<SavedMealsPage> {
   }
 
   Future<void> _add(SavedMeal recipe) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final added = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -287,10 +290,13 @@ class _SavedMealsPageState extends State<SavedMealsPage> {
                                 style: TextStyle(color: muted, fontSize: 12),
                               ),
                             const SizedBox(height: 14),
-                            FilledButton.tonalIcon(
-                              onPressed: () => _add(recipe),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Выбрать порцию'),
+                            Semantics(
+                              identifier: 'saved-meal-choose-${recipe.id}',
+                              child: FilledButton.tonalIcon(
+                                onPressed: () => _add(recipe),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Выбрать порцию'),
+                              ),
                             ),
                           ],
                         ),
@@ -407,32 +413,46 @@ class _MealPortionPageState extends State<_MealPortionPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${(recipe.total((i) => i.kcal) * count).round()} ккал',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: greenDark,
+                    if (_valid) ...[
+                      Text(
+                        '${(recipe.total((i) => i.kcal) * count).round()} ккал',
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: greenDark,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Б ${(recipe.total((i) => i.protein) * count).toStringAsFixed(1)} г · Ж ${(recipe.total((i) => i.fat) * count).toStringAsFixed(1)} г · У ${(recipe.total((i) => i.carbs) * count).toStringAsFixed(1)} г',
-                    ),
+                      Text(
+                        'Б ${(recipe.total((i) => i.protein) * count).toStringAsFixed(1)} г · Ж ${(recipe.total((i) => i.fat) * count).toStringAsFixed(1)} г · У ${(recipe.total((i) => i.carbs) * count).toStringAsFixed(1)} г',
+                      ),
+                      Text(
+                        recipe.items.every((i) => i.food.hasKnownFiber)
+                            ? 'Клетчатка: ${(recipe.total((i) => i.fiber) * count).toStringAsFixed(1)} г'
+                            : 'Клетчатка: состав неполный',
+                      ),
+                    ] else
+                      const Text(
+                        'Укажите корректное количество порций для расчёта.',
+                      ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              TextFormField(
-                controller: _portions,
-                enabled: !_saving,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Количество порций',
+              Semantics(
+                identifier: 'saved-meal-portions',
+                child: TextFormField(
+                  controller: _portions,
+                  enabled: !_saving,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Количество порций',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: (_) =>
+                      _valid ? null : 'Введите число от 0,1 до 20',
                 ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                validator: (_) => _valid ? null : 'Введите число от 0,1 до 20',
               ),
               Wrap(
                 spacing: 8,
@@ -458,12 +478,45 @@ class _MealPortionPageState extends State<_MealPortionPage> {
                 onChanged: _saving ? null : (v) => setState(() => _meal = v!),
               ),
               const SizedBox(height: 20),
+              if (_valid)
+                OutlinedButton.icon(
+                  key: const Key('saved-meal-satiety-preview'),
+                  onPressed: _saving
+                      ? null
+                      : () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          Navigator.push<void>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SatietyPage.preview(
+                                meal: recipe.name,
+                                day: widget.day,
+                                items: [
+                                  for (final item in recipe.items)
+                                    DiaryItem(
+                                      id: item.id,
+                                      meal: item.meal,
+                                      food: item.food,
+                                      grams:
+                                          item.grams * count / recipe.servings,
+                                      time: item.time,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                  icon: const Icon(Icons.spa_outlined),
+                  label: const Text('Свойства порции блюда'),
+                ),
               for (final item in recipe.items)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(item.food.name),
                   subtitle: Text(
-                    '${(item.grams * count / recipe.servings).toStringAsFixed(1)} г · ${(item.kcal * count / recipe.servings).round()} ккал',
+                    _valid
+                        ? '${(item.grams * count / recipe.servings).toStringAsFixed(1)} г · ${(item.kcal * count / recipe.servings).round()} ккал'
+                        : 'Количество порций пока не задано',
                   ),
                 ),
               if (recipe.estimated)
