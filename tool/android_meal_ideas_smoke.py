@@ -6,7 +6,7 @@ from android_features_smoke import FeaturesSmoke
 
 
 class MealIdeasSmoke(FeaturesSmoke):
-    def preview_review_properties(self):
+    def preview_review_properties(self, *, grams='210.0', kcal='113', fiber='3', capture_suffix=''):
         self.tap_scrolled_exact('Свойства порции блюда', max_height=.96)
         self.wait_for('Свойства порции блюда')
         self.tap('Нужно жевать', scroll=True)
@@ -27,32 +27,49 @@ class MealIdeasSmoke(FeaturesSmoke):
             self.adb('shell', 'input', 'swipe', str(width//2), str(height*2//3), str(width//2), str(height//3), '350')
         else:
             raise AssertionError('No fully visible whole-draft score')
-        self.scroll_to('Масса 210.0 г')
-        self.wait_for('Масса 210.0 г · 113 ккал')
-        self.capture('meal-review-properties')
+        self.scroll_to(f'Масса {grams} г')
+        self.wait_for(f'Масса {grams} г · {kcal} ккал')
+        self.capture('meal-review-properties' + capture_suffix)
         self.adb('shell', 'input', 'keyevent', '4')
         self.wait_for('Проверьте блюдо')
         for _ in range(10):
             if any('СОСТАВ ПРОДУКТОВ' in self.label(n) for n in self.read_screen()):
                 break
             self.adb('shell', 'input', 'swipe', str(width//2), str(height//3), str(width//2), str(height*3//4), '350')
-        self.wait_for('СОСТАВ ПРОДУКТОВ', '113 ккал', 'Клетчатка 3 г')
-        self.capture('meal-review-properties-return')
+        self.wait_for('СОСТАВ ПРОДУКТОВ', f'{kcal} ккал', f'Клетчатка {fiber} г')
+        self.capture('meal-review-properties-return' + capture_suffix)
 
     def tap_first_idea(self):
+        self.tap_idea('cottage_vegetables_v1')
+
+    def tap_idea(self, idea_id):
         width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
         for _ in range(12):
             for node in self.read_screen():
-                if not node.get('resource-id', '').endswith('idea-review-cottage_vegetables_v1'):
+                if not node.get('resource-id', '').endswith(f'idea-review-{idea_id}'):
                     continue
                 bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+                # No floating action covers this list. Its last complete button
+                # can end below90%, while still above the bottom gesture area.
                 if (node.get('enabled') == 'true' and len(bounds) == 4
-                        and height * .1 <= bounds[1] < bounds[3] <= height * .9):
+                        and height * .1 <= bounds[1] < bounds[3] <= height * .96):
                     self.tap_node(node)
                     return
             self.adb('shell', 'input', 'swipe', str(width // 2), str(height * 2 // 3),
                      str(width // 2), str(height // 3), '350')
-        raise AssertionError('No fully visible first meal idea review button')
+        raise AssertionError('No fully visible meal idea review button')
+
+    def preview_additional_ideas(self):
+        self.tap_exact('½ порции')
+        for idea_id, grams, kcal, fiber in [
+            ('rice_beans_broccoli_v1', '210.0', '180', '7'),
+            ('yogurt_pear_almonds_v1', '182.5', '153', '3'),
+        ]:
+            self.tap_idea(idea_id)
+            self.wait_for('СОСТАВ ПРОДУКТОВ', f'{kcal} ккал', f'Клетчатка {fiber} г')
+            self.preview_review_properties(grams=grams, kcal=kcal, fiber=fiber, capture_suffix='-' + idea_id)
+            self.adb('shell', 'input', 'keyevent', '4')
+            self.wait_for('Идеи блюд')
 
     def run_ideas(self):
         try:
@@ -83,7 +100,8 @@ class MealIdeasSmoke(FeaturesSmoke):
             self.tap_scrolled_exact('Идеи блюд', max_height=.96)
             self.wait_for('Простые варианты без запроса AI')
             self.capture('meal-ideas-profile')
-            print('PASS: offline 210 g / 113 kcal idea, read-only whole-draft properties and return, explicit review, known fibre, exact sources and portions survive cold launch; Profile entry works')
+            self.preview_additional_ideas()
+            print('PASS: offline 210 g / 113 kcal idea, read-only whole-draft properties and return, explicit review, known fibre, exact sources and portions survive cold launch; Profile entry and both additional half-portion ideas work')
         except Exception:
             self.capture('meal-ideas-failure')
             raise

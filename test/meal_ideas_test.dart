@@ -7,6 +7,7 @@ import 'package:fitlife/features/meal_ideas/meal_ideas.dart';
 import 'package:fitlife/features/meal_ideas/meal_ideas_page.dart';
 import 'package:fitlife/features/photo_analysis/photo_diary.dart';
 import 'package:fitlife/features/photo_analysis/photo_models.dart';
+import 'package:fitlife/features/satiety/satiety_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +40,20 @@ void main() {
   test(
     'whole dishes sum source portions; half and double preserve exact mass and nutrients',
     () {
-      final expected = [(420.0, 225.1), (520.0, 388.1), (375.0, 301.0)];
+      final expected = [
+        (420.0, 225.1),
+        (520.0, 388.1),
+        (375.0, 301.0),
+        (420.0, 360.0),
+        (365.0, 305.6),
+      ];
+      expect(mealIdeas.map((idea) => idea.id), [
+        'cottage_vegetables_v1',
+        'chicken_rice_v1',
+        'lentils_vegetables_v1',
+        'rice_beans_broccoli_v1',
+        'yogurt_pear_almonds_v1',
+      ]);
       for (var i = 0; i < mealIdeas.length; i++) {
         for (final factor in [.5, 1.0, 2.0]) {
           final foods = mealIdeas[i].resolve(records, factor);
@@ -60,6 +74,16 @@ void main() {
       expect(total.fat, closeTo(3.8, 1e-9));
       expect(total.carbs, closeTo(30.66, 1e-9));
       expect(total.fiber, closeTo(5.7, 1e-9));
+      final riceBeans = ideaTotal(mealIdeas[3].resolve(records, 1));
+      expect(riceBeans.protein, closeTo(20.67, 1e-9));
+      expect(riceBeans.fat, closeTo(3.3, 1e-9));
+      expect(riceBeans.carbs, closeTo(66.12, 1e-9));
+      expect(riceBeans.fiber, closeTo(14.61, 1e-9));
+      final yogurt = ideaTotal(mealIdeas[4].resolve(records, 1));
+      expect(yogurt.protein, closeTo(15.03, 1e-9));
+      expect(yogurt.fat, closeTo(13.635, 1e-9));
+      expect(yogurt.carbs, closeTo(32.745, 1e-9));
+      expect(yogurt.fiber, closeTo(5.925, 1e-9));
     },
   );
 
@@ -117,6 +141,90 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'both new half ideas preserve exact sources through whole-draft properties and explicit save/reload',
+    (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      var saves = 0;
+      final examples = [
+        (
+          id: 'rice_beans_broccoli_v1',
+          kcal: '180',
+          grams: [75.0, 60.0, 75.0],
+          codes: ['11-869', '13-660', '13-503'],
+        ),
+        (
+          id: 'yogurt_pear_almonds_v1',
+          kcal: '153',
+          grams: [100.0, 75.0, 7.5],
+          codes: ['12-184', '14-321', '14-896'],
+        ),
+      ];
+      for (final example in examples) {
+        final before = {for (final key in prefs.getKeys()) key: prefs.get(key)};
+        await tester.pumpWidget(
+          page((meal) async {
+            saves++;
+            await savePhotoMeal(meal);
+          }),
+        );
+        await tester.tap(find.text('Open ideas'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('½ порции'));
+        await tester.pumpAndSettle();
+        final open = find.byKey(Key('idea-review-${example.id}'));
+        await reveal(tester, open);
+        await tester.tap(open);
+        await tester.pumpAndSettle();
+        expect(find.text('${example.kcal} ккал'), findsOneWidget);
+        final properties = find.byKey(const Key('review-meal-properties'));
+        await reveal(tester, properties);
+        await tester.tap(properties);
+        await tester.pumpAndSettle();
+        final preview = tester.widget<SatietyPage>(find.byType(SatietyPage));
+        expect(preview.day, day);
+        expect(preview.portions!.map((p) => p.grams), example.grams);
+        expect(
+          preview.portions!.map((p) => p.source.provenance.recordId),
+          example.codes.map((code) => 'imported_cofid_2021_$code'),
+        );
+        expect(find.byKey(const Key('observe-hunger')), findsNothing);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await prefs.reload();
+        expect({
+          for (final key in prefs.getKeys()) key: prefs.get(key),
+        }, before);
+        await reveal(tester, find.byKey(const Key('photo-save')));
+        await tester.tap(find.byKey(const Key('photo-save')));
+        await tester.pumpAndSettle();
+        expect(find.text('Open ideas'), findsOneWidget);
+        final loaded = await LocalFitLifeRepository().loadDay(day, today: day);
+        expect(loaded.diary, hasLength(saves * 3));
+        final latest = loaded.diary.skip((saves - 1) * 3).toList();
+        expect(latest.map((entry) => entry.grams), example.grams);
+        expect(
+          latest.map((entry) => entry.food.provenance!.recordId),
+          example.codes.map((code) => 'imported_cofid_2021_$code'),
+        );
+        expect(
+          latest.every(
+            (entry) =>
+                entry.food.hasKnownFiber &&
+                !entry.food.isChefSuggestion &&
+                !entry.food.isPhotoEstimate &&
+                !entry.food.isTextEstimate,
+          ),
+          isTrue,
+        );
+        expect(prefs.getString('hunger_observations_v1'), isNull);
+      }
+      expect(saves, 2);
+      final loaded = await LocalFitLifeRepository().loadDay(day, today: day);
+      expect(loaded.total.calories, closeTo(332.8, 1e-9));
+    },
+  );
 
   testWidgets(
     'half example opens explicit review; cancellation writes nothing',
