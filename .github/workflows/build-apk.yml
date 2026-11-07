@@ -136,7 +136,7 @@ jobs:
   android-smoke:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -169,7 +169,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_7_pro
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back emulated -camera-front none
           disable-animations: true
           script: |
             python3 tool/android_release_smoke.py build/app/outputs/flutter-apk/app-release.apk
@@ -184,6 +184,7 @@ jobs:
             python3 tool/android_meal_ideas_smoke.py
             python3 tool/android_chef_smoke.py
             python3 tool/android_photo_smoke.py
+            python3 tool/android_camera_smoke.py
 
       - name: Upload release smoke-test diagnostics
         if: always()
