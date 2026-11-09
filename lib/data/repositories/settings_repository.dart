@@ -16,6 +16,7 @@ class SavedSettings {
     required this.recent,
     required this.goals,
     required this.water,
+    required this.steps,
     required this.weight,
     required this.recoveredData,
   });
@@ -25,6 +26,7 @@ class SavedSettings {
   final List<String> recent;
   final NutritionGoalSettings goals;
   final double water;
+  final int? steps;
   final double? weight;
   final bool recoveredData;
 }
@@ -57,6 +59,15 @@ class SettingsRepository {
       );
     }
     final water = await _number(store, 'water_$dayKey', 0, allowZero: true);
+    final rawSteps = preferences.get('steps_$dayKey');
+    int? steps;
+    if (rawSteps != null) {
+      if (rawSteps is int && rawSteps >= 0 && rawSteps <= 100000) {
+        steps = rawSteps;
+      } else {
+        await store.preserveValue('steps_$dayKey', rawSteps);
+      }
+    }
     final weights = await WeightHistory.read(store);
     final weight = weights.latest;
     return SavedSettings(
@@ -66,6 +77,7 @@ class SettingsRepository {
       recent: recent,
       goals: goals,
       water: water,
+      steps: steps,
       weight: weight,
       recoveredData: store.recoveredData,
     );
@@ -158,6 +170,21 @@ class SettingsRepository {
           preferences.setDouble('water_$dayKey', next),
         );
         return next;
+      });
+
+  /// A separate dated key leaves every older preference and diary record intact.
+  Future<int?> saveSteps(String dayKey, int? steps) =>
+      PreferencesQueue.run(preferences, () async {
+        if (steps != null && (steps < 0 || steps > 100000)) {
+          throw ArgumentError.value(steps);
+        }
+        final key = 'steps_$dayKey';
+        await PreferencesQueue.checked(
+          steps == null
+              ? preferences.remove(key)
+              : preferences.setInt(key, steps),
+        );
+        return steps;
       });
 
   Future<void> saveWeight(double weight) =>

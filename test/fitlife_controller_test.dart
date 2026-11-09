@@ -42,6 +42,26 @@ void main() {
   tearDown(() => controller.dispose());
 
   test(
+    'steps switch with selected day and a deleted record stays absent',
+    () async {
+      await controller.initialize();
+      expect(controller.state.steps, isNull);
+      await controller.saveSteps(today, 7180);
+      expect(controller.state.steps, 7180);
+      await controller.selectDay(yesterday);
+      expect(controller.state.steps, isNull);
+      await controller.saveSteps(yesterday, 3200);
+      await controller.selectDay(today);
+      expect(controller.state.steps, 7180);
+      await controller.saveSteps(today, null);
+      await controller.load();
+      expect(controller.state.steps, isNull);
+      await controller.selectDay(yesterday);
+      expect(controller.state.steps, 3200);
+    },
+  );
+
+  test(
     'a stale read failure after a committed save triggers a fresh read',
     () async {
       await controller.initialize();
