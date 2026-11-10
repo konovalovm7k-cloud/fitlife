@@ -9,6 +9,41 @@ from android_features_smoke import FeaturesSmoke
 
 
 class TodaySmoke(FeaturesSmoke):
+    def tap_steps_card(self, value):
+        nodes = self.scroll_to(value)
+        cards = [n for n in nodes if self.label(n).strip().startswith(value + '\nШаги\n')
+                 and n.get('clickable') == 'true']
+        if len(cards) != 1:
+            raise AssertionError('Expected one saved manual steps card')
+        bounds = list(map(int, re.findall(r'\d+', cards[0].get('bounds', ''))))
+        if len(bounds) != 4:
+            raise AssertionError('Steps card bounds unavailable')
+        left, top, right, bottom = bounds
+        # Flutter merges the adjacent explanatory label into this semantic
+        # node. Its center may be outside the tappable card; use its left third.
+        self.adb('shell', 'input', 'tap', str(left + (right - left) // 3),
+                 str((top + bottom) // 2))
+
+    def check_manual_steps(self):
+        # This disposable AVD starts without step data. Verify the release does
+        # not display a fabricated count before the user enters one.
+        self.scroll_to('Добавить шаги')
+        self.tap_scrolled_exact('Добавить шаги')
+        self.wait_for('Шаги вручную', 'Сохранить')
+        self.set_number('7180')
+        self.tap_exact('Сохранить')
+        self.scroll_to('7180')
+        self.wait_for('Введено вручную за выбранный день')
+        self.capture('today-manual-steps-saved')
+        self.launch()
+        self.tap_steps_card('7180')
+        self.wait_for('Шаги вручную', 'Удалить')
+        self.tap_exact('Удалить')
+        self.scroll_to('Добавить шаги')
+        self.launch()
+        self.scroll_to('Добавить шаги')
+        self.capture('today-manual-steps-removed')
+
     def tap_food_editor(self, name):
         width, height = map(int, re.findall(r'(\d+)x(\d+)', self.adb('shell', 'wm', 'size'))[-1])
         label = 'Источник состава: ' + name
@@ -71,6 +106,7 @@ class TodaySmoke(FeaturesSmoke):
             self.capture("today-top")
             self.scroll_to("Клетчатка")
             self.capture("today-nutrients")
+            self.check_manual_steps()
             self.scroll_to("Твой помощник")
             self.wait_for("83.5 кг")
             self.capture("today-companion")
@@ -92,7 +128,7 @@ class TodaySmoke(FeaturesSmoke):
             self.wait_for("Куриная грудка", "100 г · 120 ккал")
             self.capture("today-action-relaunch")
             self.check_meal_correction()
-            print("PASS: Today nutrients, real weight, supportive companion and guidance-to-diary save survive relaunch")
+            print("PASS: Today nutrients, manual steps save/delete across relaunch, real weight, companion and guidance-to-diary save")
         except Exception:
             self.capture("today-failure")
             raise
