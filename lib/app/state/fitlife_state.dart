@@ -32,11 +32,14 @@ class DiaryTotals {
 
 /// A snapshot: only the controller can replace lists or persisted values.
 class FitLifeState {
+  static const _unchanged = Object();
+
   FitLifeState({
     required DateTime day,
     this.status = FitLifeLoadStatus.loading,
     this.goals = const NutritionGoalSettings(),
     this.water = 0,
+    this.steps,
     this.weight,
     this.recoveredData = false,
     List<DiaryItem> diary = const [],
@@ -53,6 +56,9 @@ class FitLifeState {
   final FitLifeLoadStatus status;
   final NutritionGoalSettings goals;
   final double water;
+
+  /// Manually entered steps for [day]; null means there is no record.
+  final int? steps;
   final double? weight;
   final bool recoveredData;
   final List<DiaryItem> diary;
@@ -69,6 +75,7 @@ class FitLifeState {
     FitLifeLoadStatus? status,
     NutritionGoalSettings? goals,
     double? water,
+    Object? steps = _unchanged,
     double? weight,
     bool? recoveredData,
     List<DiaryItem>? diary,
@@ -80,6 +87,7 @@ class FitLifeState {
     status: status ?? this.status,
     goals: goals ?? this.goals,
     water: water ?? this.water,
+    steps: identical(steps, _unchanged) ? this.steps : steps as int?,
     weight: weight ?? this.weight,
     recoveredData: recoveredData ?? this.recoveredData,
     diary: diary ?? this.diary,

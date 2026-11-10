@@ -108,6 +108,7 @@ class FitLifeController extends ChangeNotifier {
         day: day,
         diary: [],
         water: 0,
+        steps: null,
         status: FitLifeLoadStatus.loading,
       ),
     );
@@ -187,6 +188,13 @@ class FitLifeController extends ChangeNotifier {
     final water = await repository.addWater(day, amount);
     _revision++;
     if (DiaryDate.same(day, state.day)) _publish(state.copyWith(water: water));
+  }
+
+  Future<void> saveSteps(DateTime day, int? steps) async {
+    _requireReady();
+    final saved = await repository.saveSteps(day, steps);
+    _revision++;
+    if (DiaryDate.same(day, state.day)) _publish(state.copyWith(steps: saved));
   }
 
   Future<void> saveWeight(double value) async {

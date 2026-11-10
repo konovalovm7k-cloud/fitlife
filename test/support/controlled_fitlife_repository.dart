@@ -47,5 +47,8 @@ class ControlledFitLifeRepository implements FitLifeRepository {
   Future<double> addWater(DateTime day, double amount) =>
       onWater?.call(day, amount) ?? local.addWater(day, amount);
   @override
+  Future<int?> saveSteps(DateTime day, int? steps) =>
+      local.saveSteps(day, steps);
+  @override
   Future<void> saveWeight(double value) => local.saveWeight(value);
 }

@@ -18,5 +18,6 @@ abstract interface class FitLifeRepository {
   Future<List<String>> rememberFood(String id);
   Future<void> saveGoals(NutritionGoalSettings goals);
   Future<double> addWater(DateTime day, double amount);
+  Future<int?> saveSteps(DateTime day, int? steps);
   Future<void> saveWeight(double value);
 }

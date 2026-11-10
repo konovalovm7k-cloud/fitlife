@@ -31,6 +31,7 @@ class LocalFitLifeRepository implements FitLifeRepository {
       status: FitLifeLoadStatus.ready,
       goals: saved.goals,
       water: saved.water,
+      steps: saved.steps,
       weight: saved.weight,
       diary: saved.diary,
       customFoods: saved.foods,
@@ -80,6 +81,10 @@ class LocalFitLifeRepository implements FitLifeRepository {
   @override
   Future<double> addWater(DateTime day, double amount) async =>
       (await _settings()).addWater(DiaryDate.key(day), amount);
+
+  @override
+  Future<int?> saveSteps(DateTime day, int? steps) async =>
+      (await _settings()).saveSteps(DiaryDate.key(day), steps);
   @override
   Future<void> saveWeight(double value) async =>
       (await _settings()).saveWeight(value);

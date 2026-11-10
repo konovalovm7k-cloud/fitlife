@@ -109,6 +109,37 @@ void main() {
   );
 
   test(
+    'manual steps remain dated, optional and removable without touching older data',
+    () async {
+      await prefs.setString('diary_$today', '[]');
+      expect((await repo.load(today, todayKey: today)).steps, isNull);
+      await repo.saveSteps(today, 7132);
+      await repo.saveSteps(yesterday, 4200);
+      await prefs.reload();
+      expect((await repo.load(today, todayKey: today)).steps, 7132);
+      expect((await repo.load(yesterday, todayKey: today)).steps, 4200);
+      expect(prefs.getString('diary_$today'), '[]');
+      await repo.saveSteps(today, null);
+      await prefs.reload();
+      expect((await repo.load(today, todayKey: today)).steps, isNull);
+      expect((await repo.load(yesterday, todayKey: today)).steps, 4200);
+    },
+  );
+
+  test('failed step write retains prior record and accepts retry', () async {
+    await repo.saveSteps(today, 5000);
+    disk.failedKeys.add('steps_$today');
+    await expectLater(repo.saveSteps(today, 6000), throwsStateError);
+    await prefs.reload();
+    expect((await repo.load(today, todayKey: today)).steps, 5000);
+    disk.failedKeys.clear();
+    await repo.saveSteps(today, 6000);
+    expect((await repo.load(today, todayKey: today)).steps, 6000);
+    await expectLater(repo.saveSteps(today, -1), throwsArgumentError);
+    await expectLater(repo.saveSteps(today, 100001), throwsArgumentError);
+  });
+
+  test(
     'concurrent water, favorites, diary and food writes retain every update',
     () async {
       await repo.load(today, todayKey: today);

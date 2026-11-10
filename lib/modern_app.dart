@@ -403,6 +403,34 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
           ],
         ),
         const SizedBox(height: 14),
+        if (data.steps case final steps?)
+          Row(
+            children: [
+              _statCard(
+                'Шаги',
+                '$steps',
+                Icons.directions_walk_outlined,
+                _editSteps,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Введено вручную за выбранный день',
+                  style: TextStyle(fontSize: 12, color: muted),
+                ),
+              ),
+            ],
+          )
+        else
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _editSteps,
+              icon: const Icon(Icons.directions_walk_outlined),
+              label: const Text('Добавить шаги'),
+            ),
+          ),
+        const SizedBox(height: 14),
         _card(
           Row(
             children: [
@@ -1390,6 +1418,33 @@ class _FitLifeHomeState extends State<FitLifeHome> with WidgetsBindingObserver {
         ),
       );
     }
+  }
+
+  Future<void> _editSteps() async {
+    final targetDay = day;
+    await showDialog<ValueEditResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ValueEditorDialog(
+        title: 'Шаги вручную · ${weightDate(targetDay)}',
+        fields: [
+          NumberFieldSpec(
+            'Шаги',
+            data.steps?.toDouble() ?? 0,
+            min: 0,
+            max: 100000,
+          ),
+        ],
+        allowDelete: data.steps != null,
+        validate: (values) => values.single == values.single.roundToDouble()
+            ? null
+            : 'Введи целое число шагов',
+        onSave: (result) => _controller.saveSteps(
+          targetDay,
+          result.deleted ? null : result.values.single.toInt(),
+        ),
+      ),
+    );
   }
 
   Future<void> _addWeight() async {
